@@ -65,4 +65,6 @@ ddgs>=6.0.0
 # Shadow Account HTML/PDF Report
 jinja2>=3.1.0
 matplotlib>=3.7.0
+mistune>=3.0.0
+nh3>=0.2.18
 weasyprint>=60.0
