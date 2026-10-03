@@ -99,12 +99,21 @@ def _merge_cjk_group(raw_tokens: list[str], inners: list[str]) -> str:
         return "".join(unigrams)
 
     chars: list[str] = []
-    for inner in inners:
+    highlighted: list[bool] = []
+    for raw, inner in zip(raw_tokens, inners):
+        marked = ">>>" in raw or "<<<" in raw
         if chars and chars[-1] == inner[0]:
+            highlighted[-1] = highlighted[-1] or marked
             chars.append(inner[1])
+            highlighted.append(marked)
         else:
             chars.extend(inner)
-    return "".join(chars)
+            highlighted.extend([marked] * len(inner))
+    rendered = "".join(f">>>{char}<<<" if marked else char
+                       for char, marked in zip(chars, highlighted))
+    return ("..." if raw_tokens[0].startswith("...") else "") + rendered + (
+        "..." if raw_tokens[-1].endswith("...") else ""
+    )
 
 
 class _CleanPiece:
@@ -499,7 +508,6 @@ class MemorySearchIndex:
             next_stripped = _strip_markers(nxt.text)
             ends_cjk = bool(stripped) and _is_cjk_char(stripped[-1])
             next_starts_cjk = bool(next_stripped) and _is_cjk_char(next_stripped[0])
-            has_markers = piece.text != stripped or nxt.text != next_stripped
 
             if ends_cjk and next_starts_cjk:
                 # Both sides read as CJK script once markers are stripped
@@ -509,7 +517,7 @@ class MemorySearchIndex:
                 # _prepare_cjk) earns a space back.
                 if piece.gap_after >= 2:
                     joined.append(" ")
-            elif not has_markers and ends_cjk != next_starts_cjk:
+            elif ends_cjk != next_starts_cjk:
                 # A plain CJK run directly against plain non-CJK text (a
                 # ticker, a date, punctuation) -- same artificial-join logic,
                 # just across the script boundary instead of within it.
@@ -527,20 +535,20 @@ class MemorySearchIndex:
     @staticmethod
     def _sanitize_fts_query(query: str) -> str:
         """Sanitize user query for FTS5 MATCH syntax.
-    
+
         Extracts alphanumeric tokens (2+ chars) and CJK characters,
         generates bigrams for consecutive CJK chars, quotes each token
         and joins with OR to prevent FTS5 operator injection.
-    
+
         Args:
             query: Raw user query string.
-    
+
         Returns:
             FTS5-safe MATCH expression, or empty-quoted string if no tokens.
         """
         tokens: list[str] = []
         cjk_buffer: list[str] = []
-    
+
         # Walk through pre-extracted raw tokens
         raw_tokens = re.findall(
             r"[a-zA-Z0-9_]{2,}|[\u4e00-\u9fff\u3400-\u4dbf]", query
@@ -553,10 +561,10 @@ class MemorySearchIndex:
                     tokens.extend(_cjk_query_tokens(cjk_buffer))
                     cjk_buffer = []
                 tokens.append(tok)
-    
+
         if cjk_buffer:
             tokens.extend(_cjk_query_tokens(cjk_buffer))
-    
+
         if not tokens:
             return '""'
         # Quote each token and join with OR for broader matching

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -216,7 +215,7 @@ class TestCjkContent:
             "币的 的买 买入 入和 和卖 卖出 出时 时机 。"
         )
         cleaned = MemorySearchIndex._clean_cjk(raw)
-        assert cleaned == "使用移动平均线来判断>>>比<<<>>>特<<<>>>币<<<的买入和卖出时机 。"
+        assert cleaned == "使用移动平均线来判断>>>比<<<>>>特<<<>>>币<<<的买入和卖出时机。"
 
     def test_cjk_mixed_with_latin_round_trips_without_inserted_spaces(self) -> None:
         """A CJK run directly against a ticker, date, or punctuation mark
@@ -301,3 +300,15 @@ class TestGracefulDegradation:
             # If it raises during init with a completely corrupted file,
             # that's also acceptable - the key is no unhandled crash
             pass
+
+
+@pytest.mark.parametrize("original", ["研究AAPL价格。", "研究...价格", "研究 AAPL 价格。", "记忆 系统"])
+def test_mixed_script_display_round_trip(original):
+    assert MemorySearchIndex._clean_cjk(MemorySearchIndex._prepare_cjk(original)) == original
+
+
+def test_bigram_only_snippet_retains_highlights_and_truncation():
+    snippet = MemorySearchIndex._clean_cjk("...使用 >>>用移<<< 移动...")
+    assert snippet.startswith("...") and snippet.endswith("...")
+    assert ">>>" in snippet and "<<<" in snippet
+    assert snippet.replace(">>>", "").replace("<<<", "") == "...使用移动..."

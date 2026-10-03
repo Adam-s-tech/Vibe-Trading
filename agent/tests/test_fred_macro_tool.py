@@ -203,6 +203,8 @@ class TestTruncationReporting:
     """A capped series reports the cap instead of looking complete."""
 
     def _run(self, monkeypatch, count: int, **kwargs: Any) -> Dict[str, Any]:
+        # Isolate the requested row cap; the real delivery cap is tested below.
+        monkeypatch.setattr(fred_macro_tool, "TOOL_RESULT_LIMIT", 1_000_000)
         monkeypatch.setenv("FRED_API_KEY", "tok_123")
         monkeypatch.setattr(
             fred_macro_tool,
@@ -303,9 +305,26 @@ class TestTruncationReporting:
         envelope = FredMacroTool().execute(series_id="UNRATE")
         delivered = truncate_tool_result(envelope)
 
-        assert len(envelope) > TOOL_RESULT_LIMIT
+        assert len(envelope) <= TOOL_RESULT_LIMIT
+        assert delivered == envelope
+        data = json.loads(delivered)["data"]
+        assert data["count"] == len(data["observations"])
+        assert data["truncated"] is True
+        assert "character budget" in data["hint"]
+        assert "raise limit" not in data["hint"]
+        assert data["observations"][-1]["value"] == 2499.0
         assert len(delivered) <= TOOL_RESULT_LIMIT
         for field in ("observations_available", "truncated", "limit", "hint"):
             assert f'"{field}"' in delivered
         # The observations are the part that gets cut.
         assert delivered.count('"date"') < fred_macro_tool._DEFAULT_LIMIT
+
+
+def test_upstream_partial_history_does_not_claim_complete(monkeypatch):
+    monkeypatch.setenv("FRED_API_KEY", "test")
+    monkeypatch.setattr(fred_macro_tool, "throttled_get_json", lambda *a, **kw: {
+        "count": 100001, "observations": [{"date": "2000-01-01", "value": "1"}]
+    })
+    result = json.loads(FredMacroTool().execute(series_id="TEST"))
+    assert result["ok"] is False
+    assert "narrow the date window" in result["error"]

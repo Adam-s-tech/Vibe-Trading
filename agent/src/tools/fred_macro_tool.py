@@ -25,6 +25,7 @@ from typing import Any
 from backtest.loaders._http import resolve_min_interval, throttled_get_json
 from src.agent.tools import BaseTool
 from src.config.accessor import get_env_config
+from src.config.limits import TOOL_RESULT_LIMIT
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,8 @@ class FredMacroTool(BaseTool):
                     "series is capped rather than refused: the envelope "
                     "reports truncated and observations_available, plus a hint "
                     "naming the way out (raise this where the cap allows it, "
-                    "or narrow the date window)."
+                    "or narrow the date window). The result character budget "
+                    "can return fewer observations than this limit."
                 ),
                 "default": _DEFAULT_LIMIT,
             },
@@ -125,9 +127,9 @@ class FredMacroTool(BaseTool):
             The series is capped at ``limit`` observations, keeping the most
             recent ones; ``truncated`` says whether that cap bit,
             ``observations_available`` is the count before capping, and a
-            ``hint`` names the way out. The scalars are emitted before
-            ``observations`` so a capped series still reports itself after the
-            tool-result character cap trims the array. On failure:
+            ``hint`` names the way out. Whole observations also fit the shared
+            character budget, so count is the number actually delivered.
+            The hint distinguishes that budget from the row limit. On failure:
             ``{"ok": false, "error": str}``.
         """
         api_key = get_env_config().data.fred_api_key or None
@@ -169,48 +171,37 @@ class FredMacroTool(BaseTool):
             return _error(f"no observations found for series '{series_id}'")
 
         limit = _clamp_limit(kwargs.get("limit", _DEFAULT_LIMIT))
-        # Keep the most recent observations when the cap is exceeded; FRED serves
-        # oldest-first, so the tail holds the newest records.
-        capped = observations[-limit:]
-        # A capped series must not read as a complete one: the caller asked for a
-        # date window and would otherwise take the returned tail for the whole
-        # window. Mirrors the convention get_market_data's own cap uses (cap_rows
-        # in agent/src/market_data.py): flag it, and say the way out.
         available = len(observations)
-        truncated = available > limit
-
-        data: dict[str, Any] = {
-            "series_id": series_id,
-            "count": len(capped),
-            "observations_available": available,
-            "truncated": truncated,
-            "limit": limit,
-        }
-        if truncated:
-            # At the ceiling, "raise limit" is advice the caller cannot take.
-            if limit < _MAX_LIMIT:
-                remedy = f"raise limit (max {_MAX_LIMIT}) or narrow the date window"
-            else:
+        upstream_count = payload.get("count") if isinstance(payload, dict) else None
+        if isinstance(upstream_count, int) and upstream_count > len(payload.get("observations", [])):
+            return _error("FRED returned only part of the requested date window; narrow the date window and retry")
+        count = min(limit, available)
+        while True:
+            capped = observations[-count:]
+            truncated = count < available
+            data: dict[str, Any] = {
+                "series_id": series_id,
+                "count": count,
+                "observations_available": available,
+                "truncated": truncated,
+                "limit": limit,
+            }
+            if truncated:
+                reason = "result character budget" if count < min(limit, available) else "observation limit"
                 remedy = "narrow the date window"
-            data["hint"] = (
-                f"returned the {limit} most recent of {available} observations; "
-                f"{remedy}"
-            )
-        # The array goes last so the report above survives the tool-result
-        # character cap (TOOL_RESULT_LIMIT, src/config/limits.py), which cuts an
-        # oversized envelope to a prefix. Behind 2,000 rows of observations the
-        # cap report never reaches the caller it exists for.
-        data["observations"] = capped
-
-        return json.dumps(
-            {
-                "ok": True,
-                "market": "US",
-                "source": "fred",
-                "data": data,
-            },
-            ensure_ascii=False,
-        )
+                if reason == "observation limit" and limit < _MAX_LIMIT:
+                    remedy = f"raise limit (max {_MAX_LIMIT}) or {remedy}"
+                data["hint"] = (
+                    f"returned the {count} most recent of {available} observations "
+                    f"due to the {reason}; {remedy}"
+                )
+            data["observations"] = capped
+            result = json.dumps({"ok": True, "market": "US", "source": "fred", "data": data}, ensure_ascii=False)
+            if len(result) <= TOOL_RESULT_LIMIT:
+                return result
+            if count <= 1:
+                return _error("One observation exceeds the result budget; request another series or date window")
+            count = max(1, min(count - 1, int(count * TOOL_RESULT_LIMIT / len(result))))
 
 
 def _parse_observations(payload: Any) -> list[dict]:

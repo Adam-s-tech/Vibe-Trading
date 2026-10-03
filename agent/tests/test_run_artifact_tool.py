@@ -23,6 +23,7 @@ from src.tools.run_artifact_tool import RunArtifactTool, read_run_artifact
 EQUITY_ROWS = 3821
 EQUITY_COLUMNS = ["date", "equity", "cash", "drawdown"]
 ROWS_ENVELOPE_KEYS = {
+    "path",
     "artifact",
     "run_dir",
     "columns",
@@ -94,7 +95,8 @@ def _write_run_card(run_dir: Path, entries: list[dict]) -> None:
 # --------------------------------------------------------------------------
 
 
-def test_downsample_caps_points_and_pins_first_last(run_dir: Path) -> None:
+def test_downsample_caps_points_and_pins_first_last(run_dir: Path, monkeypatch) -> None:
+    monkeypatch.setattr(run_artifact_tool, "_BYTE_BUDGET", 120_000)
     env = json.loads(
         read_run_artifact(str(run_dir), "equity", format="downsample", max_rows=1000)
     )
@@ -378,7 +380,7 @@ def test_numeric_coercion(run_dir: Path) -> None:
 
 def test_meta_format(run_dir: Path) -> None:
     env = json.loads(read_run_artifact(str(run_dir), "equity", format="meta"))
-    assert set(env) == {"artifact", "run_dir", "columns", "total_rows", "size_bytes"}
+    assert set(env) == {"artifact", "run_dir", "path", "columns", "total_rows", "size_bytes"}
     assert env["artifact"] == "equity"
     assert env["columns"] == EQUITY_COLUMNS
     assert env["total_rows"] == EQUITY_ROWS
@@ -463,9 +465,8 @@ def test_byte_budget_never_breaks_json_at_floor(
 ) -> None:
     monkeypatch.setattr(run_artifact_tool, "_BYTE_BUDGET", 10)
     env = json.loads(read_run_artifact(str(run_dir), "equity", max_rows=100))
-    assert env["returned_rows"] == 1
-    assert env["truncated"] is True
-    assert env["next_offset"] == 1
+    assert env["ok"] is False
+    assert "budget" in env["error"]
 
 
 # --------------------------------------------------------------------------
@@ -563,3 +564,55 @@ def test_tool_class_contract(run_dir: Path) -> None:
     )
     assert set(default) == ROWS_ENVELOPE_KEYS
     assert default["returned_rows"] == 3
+
+
+def test_default_page_survives_actual_agent_delivery_cap(run_dir):
+    from src.config.limits import TOOL_RESULT_LIMIT, truncate_tool_result
+    payload = read_run_artifact(str(run_dir), "equity")
+    assert len(payload) <= TOOL_RESULT_LIMIT
+    assert truncate_tool_result(payload) == payload
+    first = json.loads(payload)
+    assert first["path"] == str(run_dir / "artifacts/equity.csv")
+    next_page = json.loads(read_run_artifact(str(run_dir), "equity", offset=first["next_offset"]))
+    assert next_page["rows"][0] == _expected_row(first["returned_rows"])
+
+
+def test_oversized_json_is_an_actionable_error(run_dir):
+    from src.config.limits import TOOL_RESULT_LIMIT
+    (run_dir / "run_card.json").write_text(json.dumps({"body": "x" * TOOL_RESULT_LIMIT}))
+    payload = read_run_artifact(str(run_dir), "run_card")
+    assert len(payload) <= TOOL_RESULT_LIMIT
+    assert json.loads(payload)["ok"] is False
+
+
+def test_oversized_row_requires_projection(run_dir):
+    _write_csv(run_dir / "artifacts/trades.csv", ["code", "note"], [["000001", "x" * 20000]])
+    assert json.loads(read_run_artifact(str(run_dir), "trades"))["ok"] is False
+    projected = json.loads(read_run_artifact(str(run_dir), "trades", columns=["code"]))
+    assert projected["rows"] == [["000001"]]
+
+
+def test_shape_and_page_do_not_coerce_unselected_rows(run_dir, monkeypatch):
+    original = run_artifact_tool._coerce_value
+    count = 0
+    def coercion(value):
+        nonlocal count
+        count += 1
+        return original(value)
+    monkeypatch.setattr(run_artifact_tool, "_coerce_value", coercion)
+    read_run_artifact(str(run_dir), "equity", format="meta")
+    assert count == 0
+    read_run_artifact(str(run_dir), "equity", max_rows=3)
+    assert count == 3 * len(EQUITY_COLUMNS)
+
+
+
+def test_oversized_json_meta_reports_size_without_content(run_dir):
+    from src.config.limits import TOOL_RESULT_LIMIT
+    card = run_dir / "run_card.json"
+    card.write_text(json.dumps({"body": "x" * TOOL_RESULT_LIMIT}))
+    result = json.loads(read_run_artifact(str(run_dir), "run_card", format="meta"))
+    assert result["size_bytes"] == card.stat().st_size
+    assert result["content_omitted"] is True
+    assert result["format"] == "json"
+    assert "json" not in result

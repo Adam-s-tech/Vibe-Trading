@@ -4,7 +4,7 @@ A backtest run writes CSV artifacts (``equity.csv``, ``trades.csv``, ...) plus
 a ``run_card.json`` sidecar whose ``artifacts`` manifest lists every file the
 run produced with its sha256 and size.  The generic ``read_file`` tool returns
 raw text, burning LLM tokens on comma-separated noise and truncating mid-file.
-This tool parses the artifact once and serves structured JSON pages:
+This tool scans artifacts without retaining the full table and serves structured JSON pages:
 
 * ``rows`` — offset paging over whole records with an honest ``truncated`` /
   ``next_offset`` contract, so a walk reassembles the file losslessly.
@@ -33,12 +33,11 @@ from pathlib import Path
 from typing import Any
 
 from src.agent.tools import BaseTool
+from src.config.limits import TOOL_RESULT_LIMIT
 from src.tools.path_utils import safe_run_dir
 
-# Serialized-envelope budget in characters. MCP clients truncate large tool
-# results (50KB is a common default; raised harness limits reach 256KB); 120K
-# keeps a full page intact under the raised limit while leaving framing room.
-_BYTE_BUDGET = 120_000
+# Match the cap applied by both the agent and swarm consumers.
+_BYTE_BUDGET = TOOL_RESULT_LIMIT
 
 # Friendly CSV aliases: name -> path relative to run_dir.
 _CSV_ARTIFACTS: dict[str, str] = {
@@ -133,7 +132,10 @@ def _load_artifact_manifest(run_root: Path) -> dict[str, tuple[Path, dict[str, A
         when the card carries no well-formed ``artifacts`` list.
     """
     try:
-        card = json.loads((run_root / _RUN_CARD_PATH).read_text(encoding="utf-8"))
+        card_path = _safe_relative_resolve(run_root, _RUN_CARD_PATH)
+        if card_path is None:
+            return {}
+        card = json.loads(card_path.read_text(encoding="utf-8"))
     except (OSError, ValueError, UnicodeDecodeError):
         return {}
     entries = card.get("artifacts") if isinstance(card, dict) else None
@@ -220,6 +222,8 @@ def _coerce_value(raw: str) -> Any:
     text = raw.strip()
     if not text:
         return None
+    if re.fullmatch(r"[+-]?0[0-9]+", text):
+        return raw
     if "_" not in text:
         try:
             return int(text)
@@ -233,26 +237,29 @@ def _coerce_value(raw: str) -> Any:
     return raw
 
 
-def _read_csv(path: Path) -> tuple[list[str], list[list[Any]]]:
-    """Parse a CSV artifact into columns plus coerced, header-aligned rows.
+def _csv_shape(path: Path) -> tuple[list[str], int]:
+    """Count records without retaining the source table in memory."""
+    with path.open(encoding="utf-8-sig", newline="") as stream:
+        reader = csv.reader(stream)
+        header = next(reader, [])
+        return header, sum(1 for row in reader if row)
 
-    Each row has exactly ``len(columns)`` cells (short rows padded with
-    ``None``, extra trailing cells dropped); an empty file yields ``([], [])``.
-    """
-    with path.open("r", encoding="utf-8-sig", newline="") as handle:
-        reader = csv.reader(handle)
-        try:
-            header = next(reader)
-        except StopIteration:
-            return [], []
-        width = len(header)
-        rows: list[list[Any]] = []
+
+def _read_csv(path: Path, indices: set[int], width: int) -> list[list[Any]]:
+    """Read only selected records, retaining at most the requested page."""
+    rows: list[list[Any]] = []
+    with path.open(encoding="utf-8-sig", newline="") as stream:
+        reader = csv.reader(stream)
+        next(reader, None)
+        index = 0
         for record in reader:
             if not record:
                 continue
-            aligned = record[:width] + [""] * (width - len(record))
-            rows.append([_coerce_value(cell) for cell in aligned])
-    return header, rows
+            if index in indices:
+                aligned = record[:width] + [""] * max(0, width - len(record))
+                rows.append([_coerce_value(cell) for cell in aligned])
+            index += 1
+    return rows
 
 
 def _project(
@@ -309,8 +316,8 @@ def _fit_rows_payload(
     overflow (then one further) so wide records still converge, keeping
     ``returned_rows`` / ``truncated`` / ``next_offset`` honest — a shrunk page
     always reports ``truncated: true`` with the resume offset, so the tail is
-    never dropped silently. The payload stays valid JSON even when a single
-    row alone exceeds the budget.
+    never dropped silently. A record too large to fit returns an actionable
+    error instead of an oversized payload.
     """
     count = len(page)
     while True:
@@ -325,25 +332,31 @@ def _fit_rows_payload(
             "next_offset": offset + returned if truncated else None,
         }
         payload = _serialize(envelope)
-        if len(payload) <= budget or count <= 1:
+        if len(payload) <= budget:
             return payload
+        if count <= 1:
+            return _error("A single record exceeds the result budget",
+                          "Project fewer columns, or use read_file for this record.")
         count = max(1, min(count - 1, int(count * budget / len(payload))))
 
 
 def _fit_downsample_payload(
-    base: dict[str, Any], rows: list[list[Any]], max_points: int, budget: int
+    base: dict[str, Any], path: Path, header: list[str],
+    requested: list[str] | None, max_points: int, budget: int
 ) -> str:
     """Serialize a downsample envelope, re-striding to fewer points if needed.
 
     ``base`` is the envelope skeleton without ``rows`` / ``downsample``
-    fields; ``rows`` are the parsed (and projected) source rows. The first
+    fields. Each pass reads only selected rows from ``path``; the first
     and last source row stay pinned at every sample size.
     """
-    total = len(rows)
-    target = max_points
+    total = base["total_rows"]
+    target = max(2, max_points)
     while True:
         indices, stride = _downsample_indices(total, target)
-        sample = [rows[i] for i in indices]
+        sample = _read_csv(path, set(indices), len(header))
+        if requested is not None:
+            _, sample = _project(header, sample, requested)
         envelope = {
             **base,
             "rows": sample,
@@ -358,25 +371,38 @@ def _fit_downsample_payload(
             },
         }
         payload = _serialize(envelope)
-        if len(payload) <= budget or target <= 2:
+        if len(payload) <= budget:
             return payload
+        if target <= 2:
+            return _error("The sample endpoints exceed the result budget",
+                          "Project fewer columns, or request individual rows.")
         target = max(2, min(target - 1, int(target * budget / len(payload))))
 
 
-def _read_json_artifact(path: Path, artifact: str, run_dir: str) -> str:
+def _read_json_artifact(path: Path, artifact: str, run_dir: str, *, meta: bool = False) -> str:
     """Parse and envelope a small JSON artifact (run_card or manifest-listed).
 
     Returns the ``{"artifact", "run_dir", "json", "size_bytes"}`` envelope, or
     the error envelope when the file is corrupt — never partial JSON.
     """
     try:
-        parsed = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        with path.open(encoding="utf-8") as stream:
+            content = stream.read(_BYTE_BUDGET + 1)
+        if len(content) > _BYTE_BUDGET:
+            if meta:
+                return _serialize({"artifact": artifact, "run_dir": run_dir,
+                                   "size_bytes": path.stat().st_size, "format": "json",
+                                   "content_omitted": True,
+                                   "hint": "JSON exceeds the result budget; inspect it locally."})
+            return _error("JSON artifact exceeds the result budget",
+                          "Inspect the artifact locally or regenerate a smaller JSON artifact.")
+        parsed = json.loads(content, parse_constant=lambda value: None)
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         return _error(
             f"{artifact} is not valid JSON: {exc}",
             f"Delete or regenerate {path.name}; this tool never returns partial JSON.",
         )
-    return _serialize(
+    payload = _serialize(
         {
             "artifact": artifact,
             "run_dir": run_dir,
@@ -384,6 +410,10 @@ def _read_json_artifact(path: Path, artifact: str, run_dir: str) -> str:
             "size_bytes": path.stat().st_size,
         }
     )
+
+    if len(payload) > _BYTE_BUDGET:
+        return _error("JSON artifact exceeds the result budget", "Inspect the artifact locally or regenerate a smaller JSON artifact.")
+    return payload
 
 
 def _meta_envelope(
@@ -411,7 +441,10 @@ def _meta_envelope(
         declared = entry.get("size_bytes")
         if isinstance(declared, int) and not isinstance(declared, bool):
             envelope["manifest_size_bytes"] = declared
-    return _serialize(envelope)
+    payload = _serialize(envelope)
+    if len(payload) > _BYTE_BUDGET:
+        return _error("Artifact metadata exceeds the result budget", "Project fewer columns.")
+    return payload
 
 
 def read_run_artifact(
@@ -433,9 +466,10 @@ def read_run_artifact(
             artifacts manifest (e.g. ``artifacts/validation.json``).
         format: ``rows`` (offset paging), ``downsample`` (equal-stride sample,
             first+last pinned; ``offset`` ignored) or ``meta`` (shape only).
-            JSON artifacts return their parsed object regardless of format.
+            JSON artifacts return their parsed object when it fits; oversized
+            JSON returns size metadata only in meta mode, otherwise an error.
         offset: First row index for ``rows`` mode; negative values refused.
-        max_rows: Page/sample size, clamped to ``[1, 5000]``.
+        max_rows: Page size clamped to ``[1, 5000]``; samples need at least two endpoints.
         columns: Optional projection applied before budget fitting; an unknown
             name is refused with the valid column list.
 
@@ -456,7 +490,7 @@ def read_run_artifact(
     except ValueError as exc:
         return _error(str(exc), "Pass the run_dir a backtest/tool call returned.")
 
-    manifest = _load_artifact_manifest(run_root)
+    manifest = {} if artifact == _RUN_CARD_ALIAS else _load_artifact_manifest(run_root)
     try:
         path, entry = _resolve_artifact(run_root, artifact, manifest)
     except _ArtifactError as exc:
@@ -470,7 +504,7 @@ def read_run_artifact(
         )
 
     if path.suffix.lower() == ".json":
-        return _read_json_artifact(path, artifact, run_dir)
+        return _read_json_artifact(path, artifact, run_dir, meta=format == "meta")
 
     try:
         offset = int(offset)
@@ -488,7 +522,7 @@ def read_run_artifact(
     max_rows = max(1, min(max_rows, _MAX_ROWS_CEILING))
 
     try:
-        header, rows = _read_csv(path)
+        header, total_rows = _csv_shape(path)
     except (OSError, UnicodeDecodeError, csv.Error) as exc:
         return _error(
             f"failed to read {artifact}: {exc}",
@@ -496,15 +530,17 @@ def read_run_artifact(
         )
     if columns is not None:
         try:
-            header, rows = _project(header, rows, list(columns))
+            _project(header, [], list(columns))
         except ValueError as exc:
             return _error(
                 str(exc),
                 "Pass only column names from the artifact header, or omit 'columns'.",
             )
 
-    total_rows = len(rows)
-    base: dict[str, Any] = {"artifact": artifact, "run_dir": run_dir, "columns": header}
+    source_header = header
+    if columns is not None:
+        header = list(columns)
+    base: dict[str, Any] = {"artifact": artifact, "run_dir": run_dir, "path": str(path), "columns": header}
     budget = _BYTE_BUDGET
 
     if format == "meta":
@@ -512,11 +548,14 @@ def read_run_artifact(
 
     if format == "downsample":
         return _fit_downsample_payload(
-            {**base, "total_rows": total_rows, "offset": 0}, rows, max_rows, budget
+            {**base, "total_rows": total_rows, "offset": 0},
+            path, source_header, columns, max_rows, budget
         )
 
     # rows mode
-    page = rows[offset : offset + max_rows] if offset < total_rows else []
+    page = _read_csv(path, set(range(offset, min(total_rows, offset + max_rows))), len(source_header))
+    if columns is not None:
+        _, page = _project(source_header, page, columns)
     envelope_base = {
         **base,
         "total_rows": total_rows,
@@ -570,7 +609,7 @@ class RunArtifactTool(BaseTool):
             },
             "max_rows": {
                 "type": "integer",
-                "description": "Page/sample size, clamped to [1, 5000] (default 1000)",
+                "description": "Page size [1, 5000]; samples keep at least two endpoints (default 1000)",
             },
             "columns": {
                 "type": "array",

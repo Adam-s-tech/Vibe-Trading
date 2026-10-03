@@ -27,7 +27,7 @@ from typing import Any, Mapping
 
 logger = logging.getLogger(__name__)
 
-#: Version of the summary contract consumed by the frontend.
+#: Version of the structured tool-result summary contract.
 SCHEMA_VERSION = "1.0"
 #: Hard cap on ``equity_preview`` points; longer curves are equal-stride
 #: sampled with the first and last row always included.
@@ -61,7 +61,7 @@ def collect_ohlcv_paths(run_dir: Path) -> dict[str, str]:
         candidates = sorted((Path(run_dir) / "artifacts").glob(_OHLCV_GLOB))
         for path in candidates:
             code = path.name[len(_OHLCV_PREFIX) : -len(_OHLCV_SUFFIX)]
-            if code:
+            if code and path.is_file() and path.resolve().is_relative_to(Path(run_dir).resolve()):
                 mapping[code] = str(path)
     except OSError as exc:  # pragma: no cover - defensive, glob rarely raises
         logger.debug("ohlcv glob failed for %s: %s", run_dir, exc)
@@ -94,7 +94,7 @@ def build_backtest_summary(
         json.JSONDecodeError: ``run_card.json`` is not valid JSON.
         ValueError: ``run_card.json`` does not contain a JSON object.
     """
-    run_dir = Path(run_dir)
+    run_dir = Path(run_dir).resolve()
     card = _load_run_card(run_dir)
     backtest = card.get("backtest")
     if not isinstance(backtest, dict):
@@ -106,7 +106,10 @@ def build_backtest_summary(
         ohlcv_paths = collect_ohlcv_paths(run_dir)
 
     artifacts_dir = run_dir / "artifacts"
-    return {
+    for name in ("equity.csv", "trades.csv", "metrics.csv"):
+        _contained(run_dir, artifacts_dir / name)
+    ohlcv_paths = {code: str(_contained(run_dir, Path(path))) for code, path in ohlcv_paths.items()}
+    return _json_safe({
         "schema_version": SCHEMA_VERSION,
         "run_id": run_dir.name,
         "title": _TITLE_SEPARATOR.join(codes),
@@ -116,6 +119,8 @@ def build_backtest_summary(
         "interval": backtest.get("interval"),
         "initial_cash": backtest.get("initial_cash"),
         "metrics": _json_safe(_as_dict(card.get("metrics"))),
+        "structured_metrics": _json_safe(_as_dict(card.get("structured_metrics"))),
+        "validation": _json_safe(_as_dict(card.get("validation"))),
         "equity_preview": _equity_preview(artifacts_dir / "equity.csv"),
         "artifact_paths": {
             "equity": _existing_file(artifacts_dir / "equity.csv"),
@@ -127,7 +132,7 @@ def build_backtest_summary(
         "warnings": _json_safe(
             card.get("warnings") if isinstance(card.get("warnings"), list) else []
         ),
-    }
+    })
 
 
 def try_build_backtest_summary(
@@ -154,12 +159,20 @@ def try_build_backtest_summary(
 
 def _load_run_card(run_dir: Path) -> dict[str, Any]:
     """Read and validate ``run_card.json`` at the run directory root."""
-    payload = json.loads((run_dir / "run_card.json").read_text(encoding="utf-8"))
+    payload = json.loads(_contained(run_dir, run_dir / "run_card.json").read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(
             f"run_card.json must contain a JSON object, got {type(payload).__name__}"
         )
     return payload
+
+
+def _contained(root: Path, path: Path) -> Path:
+    """Refuse artifacts whose resolved destination escapes the run directory."""
+    resolved = path.resolve()
+    if not resolved.is_relative_to(root.resolve()):
+        raise ValueError("Summary artifact resolves outside run directory")
+    return path
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
@@ -218,26 +231,18 @@ def _equity_preview(equity_path: Path) -> list[dict[str, Any]]:
     """
     if not equity_path.is_file():
         return []
+    with equity_path.open(encoding="utf-8", newline="") as stream:
+        total = sum(1 for _ in csv.DictReader(stream))
+    indices = set(range(total)) if total <= MAX_PREVIEW_POINTS else {
+        i * (total - 1) // (MAX_PREVIEW_POINTS - 1) for i in range(MAX_PREVIEW_POINTS)
+    }
     rows: list[dict[str, Any]] = []
     with equity_path.open(encoding="utf-8", newline="") as stream:
-        for record in csv.DictReader(stream):
+        for index, record in enumerate(csv.DictReader(stream)):
+            if index not in indices:
+                continue
             point: dict[str, Any] = {"time": record.get("timestamp")}
             for field in _PREVIEW_NUMERIC_FIELDS:
                 point[field] = _parse_float(record.get(field))
             rows.append(point)
-    return _sample_rows(rows, MAX_PREVIEW_POINTS)
-
-
-def _sample_rows(rows: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
-    """Equal-stride sample of at most ``limit`` rows, endpoints always kept.
-
-    Rows within the limit are returned unchanged.  Beyond it, the integer
-    stride ``i * (n - 1) // (limit - 1)`` yields exactly ``limit`` distinct
-    indices that include the first (``i = 0``) and last (``i = limit - 1``)
-    row by construction.
-    """
-    total = len(rows)
-    if limit < 2 or total <= limit:
-        return list(rows)
-    indices = (i * (total - 1) // (limit - 1) for i in range(limit))
-    return [rows[index] for index in indices]
+    return rows
