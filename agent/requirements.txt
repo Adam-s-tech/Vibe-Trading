@@ -70,3 +70,6 @@ nh3>=0.2.18
 weasyprint>=60.0
 # Pure-Python PDF fallback where weasyprint's system pango/cairo libs are missing
 reportlab>=4.0
+# Portable Arabic shaping and bidirectional layout for ReportLab fallback
+arabic-reshaper>=3.0.1
+python-bidi>=0.6.11
