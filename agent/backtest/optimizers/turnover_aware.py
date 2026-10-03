@@ -132,6 +132,14 @@ class TurnoverAwareOptimizer(BaseOptimizer):
                     )
         return super().optimize(ret, pos, dates)
 
+    def _on_passthrough_allocation(self, allocation: pd.Series) -> None:
+        """Record retained allocations so the next penalty uses current holdings.
+
+        Args:
+            allocation: Signed output allocation, including cash liquidations.
+        """
+        self._record_turnover(allocation.index.tolist(), allocation.to_numpy(dtype=float))
+
     def _build_context(
         self, window: pd.DataFrame, active: List[str]
     ) -> "Dict[str, Any] | None":

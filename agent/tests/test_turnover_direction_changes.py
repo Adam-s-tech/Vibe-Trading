@@ -61,3 +61,50 @@ def test_all_positions_can_reverse_without_an_invalid_solver_seed() -> None:
         atol=1e-7,
     )
     assert optimizer.realized_turnover[1] == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("direction", [-1.0, 1.0])
+def test_liquidation_and_reentry_are_both_recorded(direction: float) -> None:
+    returns, positions, dates = _inputs(False)
+    positions *= direction
+    positions.iloc[6] = 0.0
+    optimizer = TurnoverAwareOptimizer(lookback=5, max_per_name=0.5)
+    result = optimizer.optimize(returns, positions, dates)
+
+    np.testing.assert_allclose(
+        optimizer.realized_turnover, calc_turnover_series(result).iloc[5:], atol=1e-7
+    )
+    np.testing.assert_allclose(optimizer.realized_turnover, [0.5, 0.5, 0.5])
+
+
+def test_reentry_penalty_starts_from_cash_not_the_liquidated_book() -> None:
+    dates = pd.bdate_range("2025-01-01", periods=8)
+    returns = pd.DataFrame({"A": -0.02, "B": 0.02}, index=dates)
+    positions = pd.DataFrame(0.0, index=dates, columns=["A", "B"])
+    positions.iloc[5, 0] = 1.0
+    positions.iloc[7] = 1.0
+    optimizer = TurnoverAwareOptimizer(lookback=5, turnover_penalty=1.0)
+    result = optimizer.optimize(returns, positions, dates)
+
+    assert result.iloc[5]["A"] == pytest.approx(1.0)
+    assert result.iloc[6].abs().sum() == 0.0
+    assert result.iloc[7]["B"] > 0.99
+    np.testing.assert_allclose(optimizer.realized_turnover, [0.5, 0.5, 0.5])
+
+
+def test_retained_allocation_after_missing_history_updates_prior_holdings() -> None:
+    returns, positions, dates = _inputs(False)
+    # Row 6 lacks B's usable covariance, so its raw short allocation survives.
+    # Row 7 only holds A and has a valid window again.
+    returns.loc[dates[:6], "B"] = np.nan
+    positions.iloc[5] = [1.0, 0.0]
+    positions.iloc[6] = [0.0, -1.0]
+    positions.iloc[7] = [1.0, 0.0]
+    optimizer = TurnoverAwareOptimizer(lookback=5, turnover_penalty=1.0)
+    result = optimizer.optimize(returns, positions, dates)
+
+    np.testing.assert_allclose(result.iloc[5:], positions.iloc[5:])
+    np.testing.assert_allclose(
+        optimizer.realized_turnover, calc_turnover_series(result).iloc[5:], atol=1e-7
+    )
+    np.testing.assert_allclose(optimizer.realized_turnover, [0.5, 1.0, 1.0])
