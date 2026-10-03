@@ -824,6 +824,8 @@ The turnover-aware optimizer measures allocation changes in signed position
 space: reversing a 50% long to a 50% short contributes 0.5 turnover, including
 both the close and the reopen. Its penalty and recorded allocation turnover
 include these reversals; execution-derived turnover remains a separate metric.
+Local data date ranges include the entire UTC end day, including subsecond
+timestamps; bars at the following midnight are excluded before aggregation.
 
 </details>
 
