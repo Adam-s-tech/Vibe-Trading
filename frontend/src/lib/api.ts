@@ -726,6 +726,7 @@ export interface UpdateScheduledRunRequest {
   delivery_channel?: string | null;
   delivery_target?: string | null;
   delivery_target_ref?: string | null;
+  delivery_format?: "html" | "pdf" | null;
 }
 
 export interface ScheduledResearchProposalJob {
@@ -743,6 +744,7 @@ export interface ScheduledResearchProposalJob {
     channel: string | null;
     target_ref: string | null;
     target_label: string | null;
+    format?: "html" | "pdf" | null;
     status: string;
   };
 }

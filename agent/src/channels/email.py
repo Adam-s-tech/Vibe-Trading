@@ -3,8 +3,10 @@
 import asyncio
 import html
 import imaplib
+import logging
 import mimetypes
 import re
+import shlex
 import smtplib
 from contextlib import suppress
 from dataclasses import dataclass
@@ -20,7 +22,6 @@ from typing import Any, Literal
 
 from src.channels.rich_text import render_email_html
 
-import logging; logger = logging.getLogger(__name__)
 from pydantic import Field
 
 from src.channels import email_probe
@@ -30,6 +31,8 @@ from src.channels.base import BaseChannel
 from src.channels.utils import get_media_dir
 from pydantic import BaseModel
 from src.channels.utils import email_tls_context, safe_filename, send_imap_id
+
+logger = logging.getLogger(__name__)
 
 
 class EmailConfig(BaseModel):
@@ -80,7 +83,8 @@ class EmailConfig(BaseModel):
     # from one an attacker forged in the message before it ever reached a
     # real authenticating server, so verification fails closed until it is
     # set. Find it by looking at the Authentication-Results header on any
-    # genuine email already in the inbox.
+    # genuine email already in the inbox. The receiver must strip untrusted
+    # copies bearing this ID (RFC 8601 section 5); the string is not a signature.
     trusted_authserv_id: str = ""
 
     # Attachment handling — set allowed types to enable (e.g. ["application/pdf", "image/*"], or ["*"] for all)
@@ -255,12 +259,17 @@ class EmailChannel(BaseChannel):
         return await email_probe.test_connection(self.config)
 
     async def send(self, msg: OutboundMessage) -> None:
-        """Send email via SMTP."""
+        """Send email via SMTP; explicit scheduled sends fail visibly if disabled."""
+        force_send = bool((msg.metadata or {}).get("force_send"))
         if not self.config.consent_granted:
+            if force_send:
+                raise RuntimeError("Email delivery requires consent_granted")
             self.logger.warning("Skip email send: consent_granted is false")
             return
 
         if not self.config.smtp_host:
+            if force_send:
+                raise RuntimeError("Email delivery requires smtp_host")
             self.logger.warning("SMTP host not configured")
             return
 
@@ -276,7 +285,6 @@ class EmailChannel(BaseChannel):
 
         # Determine if this is a reply (recipient has sent us an email before)
         is_reply = to_addr in self._last_subject_by_chat
-        force_send = bool((msg.metadata or {}).get("force_send"))
 
         # autoReplyEnabled only controls automatic replies, not proactive sends
         if is_reply and not self.config.auto_reply_enabled and not force_send:
@@ -349,9 +357,9 @@ class EmailChannel(BaseChannel):
             email_msg.set_content(notice)
             email_msg.add_alternative(render_email_html(notice), subtype="html")
             try:
-                from weasyprint import HTML
+                from src.channels.rich_text import render_email_pdf
 
-                generated_pdf = HTML(string=render_email_html(content)).write_pdf()
+                generated_pdf = await asyncio.to_thread(render_email_pdf, content)
             except Exception:
                 self.logger.exception("Failed to render required PDF attachment")
                 raise
@@ -915,104 +923,141 @@ class EmailChannel(BaseChannel):
             return cls._html_to_text(payload).strip()
         return payload.strip()
 
-    # One ";"-separated resinfo clause: optional leading comment, the
-    # method (optionally "/version"), "=", and the result token.
-    _AR_CLAUSE_METHOD_RE = re.compile(
-        r"(?:\(.*?\)\s*)?([a-zA-Z][a-zA-Z0-9_.-]*)(?:/[\d.]+)?\s*=\s*([a-zA-Z0-9_-]+)"
-    )
-    # A "ptype.property=value" pair inside a clause, e.g. smtp.mailfrom=...,
-    # header.d=..., header.from=....
-    _AR_PROPERTY_RE = re.compile(
-        r"\b([a-zA-Z][a-zA-Z0-9_-]*)\.([a-zA-Z][a-zA-Z0-9_-]*)\s*=\s*([^\s;()]+)"
-    )
+    @staticmethod
+    def _authentication_results_segments(value: str) -> list[str]:
+        """Split clauses outside quoted strings and discard nested RFC comments.
+
+        Malformed quoted strings or comments refuse the whole header.
+        """
+        segments: list[str] = []
+        current: list[str] = []
+        depth = 0
+        quoted = False
+        escaped = False
+        for char in value:
+            if escaped:
+                if not depth:
+                    current.append(char)
+                escaped = False
+            elif char == "\\" and (depth or quoted):
+                if not depth:
+                    current.append(char)
+                escaped = True
+            elif depth:
+                if char == "(":
+                    depth += 1
+                elif char == ")":
+                    depth -= 1
+            elif char == '"':
+                quoted = not quoted
+                current.append(char)
+            elif not quoted and char == "(":
+                depth = 1
+                current.append(" ")
+            elif not quoted and char == ")":
+                return []
+            elif not quoted and char == ";":
+                segments.append("".join(current).strip())
+                current = []
+            else:
+                current.append(char)
+        if depth or quoted or escaped:
+            return []
+        segments.append("".join(current).strip())
+        return segments
 
     @classmethod
     def _select_trusted_authentication_results(
         cls, parsed_msg: Any, trusted_authserv_id: str
     ) -> str | None:
-        """Return the one Authentication-Results header this deployment trusts.
+        """Select one unambiguous receiver header by configured authserv-id.
 
-        Requires ``trusted_authserv_id`` and returns the header whose leading
-        authserv-id token matches it (case-insensitively); ``None`` when
-        unconfigured or no header matches. An attacker cannot forge that
-        match without already controlling the named server -- unlike
-        trusting "whichever header is on top", which a message that never
-        passed through a real authenticating server has no legitimate
-        instance of at all, letting a forged one stand in for it.
+        The receiving provider MUST remove forged copies bearing its own ID
+        (RFC 8601 section 5). The ID alone is not cryptographic provenance.
+        Unknown, malformed or duplicate matching headers fail closed.
 
         Args:
             parsed_msg: Parsed email message.
-            trusted_authserv_id: This deployment's own mail server's
-                authserv-id, or empty when not configured.
+            trusted_authserv_id: ID of the configured stripping receiver.
 
         Returns:
-            The trusted header's raw value, or ``None``.
+            The sole matching header, or None.
         """
-        if not trusted_authserv_id:
-            return None
-        headers = parsed_msg.get_all("Authentication-Results") or []
         wanted = trusted_authserv_id.strip().lower()
-        for header in headers:
-            authserv_id = str(header).split(";", 1)[0].strip().lower()
-            if authserv_id == wanted:
-                return str(header)
-        return None
+        if not wanted:
+            return None
+        matches: list[str] = []
+        for header in parsed_msg.get_all("Authentication-Results") or []:
+            segments = cls._authentication_results_segments(str(header))
+            if not segments:
+                continue
+            try:
+                identity = shlex.split(segments[0])
+            except ValueError:
+                continue
+            if identity and identity[0].lower() == wanted:
+                if len(identity) > 2 or (len(identity) == 2 and identity[1] != "1"):
+                    return None
+                matches.append(str(header))
+        return matches[0] if len(matches) == 1 else None
 
-    @staticmethod
+    @classmethod
     def _parse_authentication_results_clauses(
-        header_value: str,
+        cls, header_value: str,
     ) -> list[dict[str, Any]]:
-        """Split one Authentication-Results header into its per-method clauses.
+        """Read method/result and properties without interpreting quoted prose.
 
-        Args:
-            header_value: One raw ``Authentication-Results`` header value.
-
-        Returns:
-            A list of ``{"method": str, "result": str, "properties":
-            {(ptype, property): value}}`` dicts, one per ``;``-separated
-            resinfo segment after the authserv-id. A segment with no
-            parseable ``method=result`` is skipped rather than raising, so
-            one garbled clause does not lose the other, well-formed ones.
+        Comments have already been removed; quoted property values are decoded
+        by the lexer. A malformed clause is never used for authentication.
         """
-        _, _, rest = header_value.partition(";")
         clauses: list[dict[str, Any]] = []
-        for segment in rest.split(";"):
-            match = EmailChannel._AR_CLAUSE_METHOD_RE.search(segment)
-            if not match:
+        for segment in cls._authentication_results_segments(header_value)[1:]:
+            lexer = shlex.shlex(segment, posix=True, punctuation_chars="=")
+            lexer.whitespace_split = True
+            lexer.commenters = ""
+            try:
+                tokens = list(lexer)
+            except ValueError:
+                continue
+            if len(tokens) < 3 or tokens[1] != "=":
+                continue
+            if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_-]*(?:/[0-9.]+)?", tokens[0]):
+                continue
+            if not re.fullmatch(r"[a-zA-Z0-9_-]+", tokens[2]):
                 continue
             properties: dict[tuple[str, str], str] = {}
-            for prop_match in EmailChannel._AR_PROPERTY_RE.finditer(segment):
-                ptype = prop_match.group(1).lower()
-                prop = prop_match.group(2).lower()
-                properties[(ptype, prop)] = prop_match.group(3)
-            clauses.append(
-                {
-                    "method": match.group(1).lower(),
-                    "result": match.group(2).lower(),
-                    "properties": properties,
-                }
-            )
+            valid = (len(tokens) - 3) % 3 == 0
+            for index in range(3, len(tokens) - 2, 3):
+                key, equals, value = tokens[index:index + 3]
+                if equals != "=":
+                    valid = False
+                    break
+                if key.lower() == "reason":
+                    continue
+                if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_-]*\.[a-zA-Z][a-zA-Z0-9_-]*", key):
+                    valid = False
+                    break
+                pair = tuple(key.lower().split(".", 1))
+                if pair in properties:
+                    valid = False
+                    break
+                properties[pair] = value
+            if valid:
+                clauses.append({"method": tokens[0].lower().split("/", 1)[0],
+                                "result": tokens[2].lower(), "properties": properties})
         return clauses
 
     @staticmethod
     def _domains_align(candidate: str, from_domain: str) -> bool:
-        """Conservative same-or-subdomain check, relaxed-alignment style.
+        """Use strict domain alignment; relaxed alignment belongs to the receiver.
 
-        Not a full RFC 7489 organizational-domain computation (that needs a
-        public suffix list this module does not carry) -- a same-or-subdomain
-        match in either direction, which is the common case for a single
-        organization's mail infrastructure and never accepts an unrelated
-        domain.
+        A suffix alone cannot establish organizational ownership (public
+        suffixes and delegated subdomains exist). A trusted DMARC verdict can
+        supply relaxed alignment without a local public-suffix database.
         """
         candidate = candidate.strip().lower().rstrip(".")
         from_domain = from_domain.strip().lower().rstrip(".")
-        if not candidate or not from_domain:
-            return False
-        return (
-            candidate == from_domain
-            or candidate.endswith("." + from_domain)
-            or from_domain.endswith("." + candidate)
-        )
+        return bool(candidate and from_domain and candidate == from_domain)
 
     @classmethod
     def _check_authentication_results(
@@ -1045,10 +1090,18 @@ class EmailChannel(BaseChannel):
         if header is None:
             return False, False
 
-        from_domain = parseaddr(parsed_msg.get("From", ""))[1].rsplit("@", 1)[-1]
+        from_headers = parsed_msg.get_all("From") or []
+        if len(from_headers) != 1:
+            return False, False
+        from_address = parseaddr(from_headers[0])[1]
+        if "@" not in from_address:
+            return False, False
+        from_domain = from_address.rsplit("@", 1)[-1]
         clauses = cls._parse_authentication_results_clauses(header)
         dmarc_pass = any(
-            c["method"] == "dmarc" and c["result"] == "pass" for c in clauses
+            c["method"] == "dmarc" and c["result"] == "pass"
+            and cls._domains_align(c["properties"].get(("header", "from"), ""), from_domain)
+            for c in clauses
         )
 
         spf_pass = False

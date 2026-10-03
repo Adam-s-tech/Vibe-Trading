@@ -153,7 +153,7 @@
     "editingHint": "Você está editando esta execução agendada. Ao salvar, a identidade e o histórico de execuções são preservados.",
     "edit": "Editar",
     "editAria": "Editar execução agendada: {{prompt}}",
-    "editRunningDisabled": "Aguarde esta execução terminar antes de editá-la.",
+    "editRunningDisabled": "Aguarde a execução ou a entrega terminar antes de editar.",
     "deliveryInApp": "Manter apenas no Vibe (não enviar)",
     "deliveryNoChannels": "Nenhum canal de entrega habilitado está configurado. Configure um em Configurações → Canais.",
     "deliveryChannelsLoadFailed": "Não foi possível carregar os canais de entrega configurados.",
@@ -229,7 +229,13 @@
     "verdictRecorded": "a partir de {{when}}",
     "deliveryKnownTargetLabel": "Destino conhecido",
     "deliveryKnownTargetPlaceholder": "Escolher um destino conhecido…",
-    "deliverySuggestionKind_private_chat": "Meu chat privado"
+    "deliverySuggestionKind_private_chat": "Meu chat privado",
+    "deliveryTargetPlaceholder_email_address": "name@example.com",
+    "deliveryTargetPlaceholder_chat": "ID do chat, grupo ou usuário",
+    "deliveryTargetPlaceholder_channel": "ID do canal",
+    "deliveryTargetPlaceholder_destination": "chat / grupo / ID de usuário",
+    "deliveryTargetPlaceholder_slack_destination": "#canal, @usuário ou ID da conversa",
+    "deliveryTargetKind_slack_destination": "Destino"
   },
   "reports": {
     "badge": "Relatórios",
@@ -677,6 +683,10 @@
           "max_attachments_per_email": {
             "label": "Máx. de anexos por e-mail",
             "help": "Quantos anexos são aceitos em um único e-mail (padrão 5)."
+          },
+          "trusted_authserv_id": {
+            "label": "Servidor de autenticação confiável",
+            "help": "authserv-id do servidor receptor, por exemplo mx.google.com. O provedor deve remover cabeçalhos Authentication-Results recebidos e forjados com esse ID. Obrigatório ao verificar SPF ou DKIM; vazio rejeita emails recebidos."
           }
         },
         "websocket": {

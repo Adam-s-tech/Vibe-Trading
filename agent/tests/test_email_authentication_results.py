@@ -129,9 +129,8 @@ def test_pass_for_an_unaligned_domain_is_not_honoured() -> None:
     assert (spf_pass, dkim_pass) == (False, False)
 
 
-def test_subdomain_of_the_from_domain_is_aligned() -> None:
-    """A relaxed-alignment match: mail.trusted-domain.com authenticating for
-    a From: address at trusted-domain.com is the same organization."""
+def test_subdomain_alignment_requires_receiver_dmarc() -> None:
+    """Delegated subdomains require the receiver's explicit DMARC alignment."""
     raw = (
         b"From: real@trusted-domain.com\r\n"
         b"To: bot@example.com\r\n"
@@ -145,7 +144,7 @@ def test_subdomain_of_the_from_domain_is_aligned() -> None:
     spf_pass, dkim_pass = EmailChannel._check_authentication_results(
         _parse(raw), "mx.ourprovider.com"
     )
-    assert (spf_pass, dkim_pass) == (True, True)
+    assert (spf_pass, dkim_pass) == (False, False)
 
 
 def test_dmarc_pass_substitutes_for_domain_alignment() -> None:
@@ -199,3 +198,37 @@ def test_spf_and_dkim_are_independent_verdicts() -> None:
         _parse(raw), "mx.ourprovider.com"
     )
     assert (spf_pass, dkim_pass) == (True, False)
+
+
+def _verdict(header: str, *, from_address: str = "victim@example.com"):
+    raw = f"From: {from_address}\r\nAuthentication-Results: {header}\r\n\r\nbody".encode()
+    return EmailChannel._check_authentication_results(_parse(raw), "mx.example")
+
+
+def test_comments_and_quoted_reason_are_not_authentication_clauses():
+    assert _verdict('mx.example; (nested (spf=pass) smtp.mailfrom=example.com); (dkim=pass header.d=example.com)') == (False, False)
+    assert _verdict('mx.example; reason="spf=pass smtp.mailfrom=example.com; dkim=pass header.d=example.com"') == (False, False)
+    assert _verdict('mx.example; spf=fail reason="spf=pass smtp.mailfrom=example.com"') == (False, False)
+
+
+def test_quoted_domains_comments_and_authserv_version_are_valid():
+    assert _verdict('"mx.example" (receiver) 1; spf/1=pass (verified) smtp.mailfrom="victim@example.com"; dkim=pass header.d="example.com"') == (True, True)
+
+
+def test_dmarc_must_bind_the_visible_from_domain():
+    assert _verdict('mx.example; spf=pass smtp.mailfrom=evil.test; dkim=pass header.d=evil.test; dmarc=pass header.from=evil.test') == (False, False)
+    assert _verdict('mx.example; spf=pass smtp.mailfrom=mail.example.com; dkim=pass header.d=mail.example.com; dmarc=pass header.from=example.com') == (True, True)
+
+
+def test_duplicate_matching_headers_fail_closed():
+    assert _verdict('mx.example; spf=pass smtp.mailfrom=example.com\r\nAuthentication-Results: mx.example; spf=fail smtp.mailfrom=example.com') == (False, False)
+
+
+def test_delegated_suffix_is_not_ownership_without_dmarc():
+    assert _verdict('mx.example; spf=pass smtp.mailfrom=com; dkim=pass header.d=com') == (False, False)
+    assert _verdict('mx.example; spf=pass smtp.mailfrom=tenant.example.com; dkim=pass header.d=tenant.example.com') == (False, False)
+
+
+def test_malformed_comments_and_conflicting_properties_fail_closed():
+    assert _verdict('mx.example; spf=pass smtp.mailfrom=example.com (unclosed') == (False, False)
+    assert _verdict('mx.example; spf=pass smtp.mailfrom=evil.test smtp.mailfrom=example.com') == (False, False)

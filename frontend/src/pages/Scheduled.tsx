@@ -376,15 +376,12 @@ export function Scheduled() {
   const selectedChannelIsAvailable = configuredDeliveryChannels.some(
     (channel) => channel.name === deliveryChannel,
   );
-  const targetLabel =
-    selectedChannel?.delivery_target_label ||
-    (selectedChannel?.delivery_target_kind
-      ? t(`scheduled.deliveryTargetKind_${selectedChannel.delivery_target_kind}`, {
-          defaultValue: t("scheduled.deliveryTargetLabel"),
-        })
-      : t("scheduled.deliveryTargetLabel"));
-  const targetPlaceholder =
-    selectedChannel?.delivery_target_placeholder || t("scheduled.deliveryTargetPlaceholder");
+  const targetLabel = t(`scheduled.deliveryTargetKind_${selectedChannel?.delivery_target_kind || "destination"}`, {
+    defaultValue: selectedChannel?.delivery_target_label || t("scheduled.deliveryTargetLabel"),
+  });
+  const targetPlaceholder = t(`scheduled.deliveryTargetPlaceholder_${selectedChannel?.delivery_target_kind || "destination"}`, {
+    defaultValue: selectedChannel?.delivery_target_placeholder || t("scheduled.deliveryTargetPlaceholder"),
+  });
   const targetInputType =
     selectedChannel?.delivery_target_input_type === "email" ? "email" : "text";
   const targetSuggestions = selectedChannel?.delivery_target_suggestions ?? [];
@@ -764,10 +761,10 @@ export function Scheduled() {
                     <button
                       type="button"
                       onClick={() => beginEdit(run)}
-                      disabled={run.status === "running"}
+                      disabled={(run.status === "running" || run.delivery_status === "sending")}
                       aria-label={t("scheduled.editAria", { prompt: run.prompt })}
                       title={
-                        run.status === "running"
+                        (run.status === "running" || run.delivery_status === "sending")
                           ? t("scheduled.editRunningDisabled")
                           : undefined
                       }

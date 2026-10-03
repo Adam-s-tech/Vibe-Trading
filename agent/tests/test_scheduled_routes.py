@@ -591,3 +591,35 @@ def test_list_omits_verdict_when_never_recorded(
     assert response.status_code == 200
     (row,) = response.json()
     assert row["last_verdict"] is None
+
+
+def test_patch_refuses_edit_while_delivery_is_in_flight(client, store):
+    job = _seed(store, delivery=DeliveryRecord(status=DeliveryStatus.SENDING, session_id="s1", key="k1"))
+    response = client.patch(f"/scheduled-runs/{job.id}", json={"prompt": "new prompt"})
+    assert response.status_code == 409
+    assert store.get(job.id).prompt == job.prompt
+
+
+def test_patch_email_format_preserves_target_ref_and_clears_old_receipt(client, store):
+    job = _seed(store, delivery_channel="email", delivery_target="reader@example.test",
+                delivery_target_ref="mail-reader", delivery_target_label="Reader", delivery_format="html",
+                delivery=DeliveryRecord(status=DeliveryStatus.SENT, session_id="s1", key="k1"))
+    response = client.patch(f"/scheduled-runs/{job.id}", json={"delivery_format": "pdf"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["delivery_format"] == "pdf"
+    assert body["delivery_target_ref"] == "mail-reader"
+    assert body["delivery_status"] == "none"
+    assert store.get(job.id).delivery.session_id == "s1"  # retain verdict observation
+    assert client.patch(f"/scheduled-runs/{job.id}", json={"prompt": "other"}).json()["delivery_format"] == "pdf"
+    assert client.patch(f"/scheduled-runs/{job.id}", json={"delivery_format": None}).json()["delivery_format"] is None
+
+
+def test_patch_leaving_email_clears_implicit_format_and_refuses_explicit_pdf(client, store):
+    job = _seed(store, delivery_channel="email", delivery_target="reader@example.test", delivery_format="pdf")
+    response = client.patch(f"/scheduled-runs/{job.id}", json={"delivery_channel": "telegram", "delivery_target": "123", "delivery_format": "pdf"})
+    assert response.status_code == 422
+    assert store.get(job.id).delivery_channel == "email"
+    response = client.patch(f"/scheduled-runs/{job.id}", json={"delivery_channel": "telegram", "delivery_target": "123"})
+    assert response.status_code == 200
+    assert response.json()["delivery_format"] is None

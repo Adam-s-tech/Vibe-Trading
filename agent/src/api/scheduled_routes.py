@@ -142,7 +142,9 @@ async def _send_scheduled_briefing(
         raise RuntimeError(f"channel {channel!r} is not configured")
     if not target:
         raise RuntimeError(f"channel {channel!r} has no delivery target configured")
-    metadata = {"delivery_format": delivery_format} if delivery_format else {}
+    metadata = {"force_send": True}
+    if delivery_format:
+        metadata["delivery_format"] = delivery_format
     return await adapter.send_with_receipt(
         OutboundMessage(channel=channel, chat_id=target, content=text, metadata=metadata)
     )
@@ -268,6 +270,9 @@ class UpdateScheduledRunRequest(BaseModel):
     delivery_target_ref: Optional[str] = Field(
         None, description="Replacement opaque configured target ref"
     )
+    delivery_format: Optional[Literal["html", "pdf"]] = Field(
+        None, description="Email presentation; null restores plain text"
+    )
     end_at: Optional[int] = Field(
         None, description="Replacement epoch-ms end boundary; null removes it"
     )
@@ -333,6 +338,7 @@ class CreateRunFromPlaybookRequest(BaseModel):
     title: Optional[str] = None
     end_at: Optional[int] = None
     delivery_target_ref: Optional[str] = None
+    delivery_format: Optional[Literal["html", "pdf"]] = None
 
 
 class ScheduledRunResponse(BaseModel):
@@ -607,6 +613,7 @@ def register_scheduled_routes(
         from src.scheduled_research.executor import next_due
         from src.scheduled_research.models import (
             DeliveryRecord,
+            DeliveryStatus,
             JobStatus,
             is_interval_schedule,
             validate_schedule,
@@ -621,10 +628,10 @@ def register_scheduled_routes(
             raise HTTPException(
                 status_code=404, detail=f"scheduled run {job_id} not found"
             )
-        if job.status == JobStatus.RUNNING:
+        if job.status == JobStatus.RUNNING or job.delivery.status == DeliveryStatus.SENDING:
             raise HTTPException(
                 status_code=409,
-                detail="a running scheduled run cannot be edited; retry after it finishes",
+                detail="a running scheduled run or active delivery cannot be edited; retry after it finishes",
             )
 
         fields = request.model_fields_set
@@ -730,7 +737,17 @@ def register_scheduled_routes(
                         detail="delivery_target is required when delivery_channel is set",
                     )
 
-        delivery_changed = delivery_requested and (
+        delivery_format = job.delivery_format
+        if "delivery_format" in fields:
+            delivery_format = request.delivery_format
+        elif delivery_channel != "email":
+            delivery_format = None
+        if delivery_format is not None and delivery_channel != "email":
+            raise HTTPException(
+                status_code=422, detail="delivery_format is supported only for email delivery"
+            )
+
+        delivery_changed = delivery_format != job.delivery_format or delivery_requested and (
             delivery_channel != job.delivery_channel
             or delivery_target != job.delivery_target
             or delivery_target_ref != job.delivery_target_ref
@@ -745,6 +762,7 @@ def register_scheduled_routes(
         job.end_at = end_at
         job.next_run_at = next_run_at
         if delivery_changed:
+            job.delivery_format = delivery_format
             job.delivery_channel = delivery_channel
             job.delivery_target = delivery_target
             job.delivery_target_ref = delivery_target_ref
@@ -752,7 +770,7 @@ def register_scheduled_routes(
             # The previous outbox receipt describes the old destination. Clear
             # it rather than presenting that receipt as if it belonged to the
             # newly-authored delivery configuration.
-            job.delivery = DeliveryRecord()
+            job.delivery = DeliveryRecord(session_id=job.delivery.session_id)
 
         store.upsert(job)
         return _job_to_response(job)
@@ -878,6 +896,8 @@ def register_scheduled_routes(
                 variables=request.variables,
                 config=request.config,
                 next_run_at=request.next_run_at,
+                delivery_target_ref=request.delivery_target_ref,
+                delivery_format=request.delivery_format,
                 **kwargs,
             )
         except ValueError as exc:
@@ -896,18 +916,6 @@ def register_scheduled_routes(
         job.title = request.title or playbook.name
         job.source_type = "playbook"
         job.playbook_slug = playbook.slug
-        if request.delivery_target_ref:
-            from src.channels.targets import resolve_delivery_target
-
-            try:
-                target = resolve_delivery_target(request.delivery_target_ref)
-            except ValueError as exc:
-                raise HTTPException(status_code=422, detail=str(exc)) from exc
-            job.delivery_channel = target.channel
-            job.delivery_target = target.target
-            job.delivery_target_ref = target.ref
-            job.delivery_target_label = target.label
-
         _get_scheduled_research_store().upsert(job)
         return _job_to_response(job)
 

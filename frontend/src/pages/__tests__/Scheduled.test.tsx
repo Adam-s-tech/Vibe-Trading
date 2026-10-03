@@ -220,7 +220,7 @@ describe("Scheduled page", () => {
     await within(channel).findByRole("option", { name: "Telegram" });
     fireEvent.change(channel, { target: { value: "telegram" } });
 
-    const target = await screen.findByLabelText("Telegram chat");
+    const target = await screen.findByLabelText("Chat");
     expect(target).toHaveValue("");
     expect(target).toHaveAttribute("placeholder", "Chat, group, or user ID");
 
@@ -330,7 +330,7 @@ describe("briefing delivery", () => {
     fireEvent.change(channel, {
       target: { value: "telegram" },
     });
-    fireEvent.change(await screen.findByLabelText(/telegram chat/i), {
+    fireEvent.change(await screen.findByLabelText(/^chat$/i), {
       target: { value: " chat-9 " },
     });
     fireEvent.click(screen.getByRole("button", { name: /schedule|create/i }));
@@ -454,5 +454,29 @@ describe("Scheduled page verdict cell", () => {
     render(<Scheduled />);
 
     expect(await screen.findByText(/No calls/)).toBeInTheDocument();
+  });
+});
+
+
+describe("email format editing", () => {
+  it("loads, changes and resets the stored format", async () => {
+    mocked.listScheduledRuns.mockResolvedValue([run({ delivery_channel: "email", delivery_target: "reader@example.test", delivery_format: "pdf" })]);
+    mocked.updateScheduledRun.mockResolvedValue(run());
+    render(<Scheduled />);
+    fireEvent.click(await screen.findByRole("button", { name: /Edit scheduled run/ }));
+    expect(screen.getByLabelText("Email report format")).toHaveValue("pdf");
+    fireEvent.change(screen.getByLabelText("Email report format"), { target: { value: "html" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(mocked.updateScheduledRun).toHaveBeenCalledWith("auckland-scan", expect.objectContaining({ delivery_format: "html" })));
+    const channel = screen.getByLabelText("Delivery channel");
+    await waitFor(() => expect(channel).toHaveValue(""));
+    fireEvent.change(channel, { target: { value: "email" } });
+    expect(screen.getByLabelText("Email report format")).toHaveValue("");
+  });
+
+  it("disables editing while a briefing is sending", async () => {
+    mocked.listScheduledRuns.mockResolvedValue([run({ delivery_status: "sending" })]);
+    render(<Scheduled />);
+    expect(await screen.findByRole("button", { name: /Edit scheduled run/ })).toBeDisabled();
   });
 });

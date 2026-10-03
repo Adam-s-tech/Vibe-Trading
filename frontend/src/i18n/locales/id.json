@@ -153,7 +153,7 @@
     "editingHint": "Anda sedang mengedit proses terjadwal ini. Penyimpanan mempertahankan identitas dan riwayat eksekusinya.",
     "edit": "Edit",
     "editAria": "Edit proses terjadwal: {{prompt}}",
-    "editRunningDisabled": "Tunggu hingga proses ini selesai sebelum mengeditnya.",
+    "editRunningDisabled": "Tunggu proses atau pengirimannya selesai sebelum mengedit.",
     "deliveryInApp": "Simpan hanya di Vibe (jangan kirim)",
     "deliveryNoChannels": "Tidak ada saluran pengiriman aktif yang dikonfigurasi. Konfigurasikan satu di Pengaturan → Saluran.",
     "deliveryChannelsLoadFailed": "Tidak dapat memuat saluran pengiriman yang dikonfigurasi.",
@@ -229,7 +229,13 @@
     "verdictRecorded": "per {{when}}",
     "deliveryKnownTargetLabel": "Tujuan dikenal",
     "deliveryKnownTargetPlaceholder": "Pilih tujuan yang dikenal…",
-    "deliverySuggestionKind_private_chat": "Chat pribadi saya"
+    "deliverySuggestionKind_private_chat": "Chat pribadi saya",
+    "deliveryTargetPlaceholder_email_address": "name@example.com",
+    "deliveryTargetPlaceholder_chat": "ID obrolan, grup, atau pengguna",
+    "deliveryTargetPlaceholder_channel": "ID kanal",
+    "deliveryTargetPlaceholder_destination": "ID chat / grup / pengguna",
+    "deliveryTargetPlaceholder_slack_destination": "#kanal, @pengguna, atau ID percakapan",
+    "deliveryTargetKind_slack_destination": "Tujuan"
   },
   "reports": {
     "badge": "Laporan",
@@ -677,6 +683,10 @@
           "max_attachments_per_email": {
             "label": "Maks. lampiran per email",
             "help": "Berapa banyak lampiran yang diterima dari satu email (default 5)."
+          },
+          "trusted_authserv_id": {
+            "label": "Server autentikasi tepercaya",
+            "help": "authserv-id server penerima, misalnya mx.google.com. Penyedia email harus menghapus header Authentication-Results masuk palsu yang memakai ID ini. Wajib saat verifikasi SPF atau DKIM aktif; kosong menolak email masuk."
           }
         },
         "websocket": {

@@ -148,7 +148,7 @@
     "editingHint": "このスケジュール実行を編集中です。保存しても識別子と実行履歴は保持されます。",
     "edit": "編集",
     "editAria": "スケジュール実行を編集: {{prompt}}",
-    "editRunningDisabled": "この実行が完了してから編集してください。",
+    "editRunningDisabled": "実行または配信が完了してから編集してください。",
     "deliveryInApp": "Vibe内のみに保持（送信しない）",
     "deliveryNoChannels": "有効な配信チャネルが設定されていません。設定 → チャネルで設定してください。",
     "deliveryChannelsLoadFailed": "設定済みの配信チャネルを読み込めませんでした。",
@@ -224,7 +224,13 @@
     "verdictRecorded": "{{when}} 時点",
     "deliveryKnownTargetLabel": "既知の送信先",
     "deliveryKnownTargetPlaceholder": "既知の送信先を選択…",
-    "deliverySuggestionKind_private_chat": "自分のプライベートチャット"
+    "deliverySuggestionKind_private_chat": "自分のプライベートチャット",
+    "deliveryTargetPlaceholder_email_address": "name@example.com",
+    "deliveryTargetPlaceholder_chat": "チャット、グループ、ユーザーの ID",
+    "deliveryTargetPlaceholder_channel": "チャンネル ID",
+    "deliveryTargetPlaceholder_destination": "チャット / グループ / ユーザー ID",
+    "deliveryTargetPlaceholder_slack_destination": "#チャンネル、@ユーザー、会話 ID",
+    "deliveryTargetKind_slack_destination": "送信先"
   },
   "reports": {
     "badge": "レポート",
@@ -672,6 +678,10 @@
           "max_attachments_per_email": {
             "label": "1 通あたりの添付数上限",
             "help": "1 通のメールから受け入れる添付ファイルの最大数（既定 5）。"
+          },
+          "trusted_authserv_id": {
+            "label": "信頼する認証サーバー",
+            "help": "受信サーバーの authserv-id（例：mx.google.com）。メール提供者が、この ID を偽装した外部の Authentication-Results ヘッダーを削除する必要があります。SPF または DKIM 検証時は必須です。空欄では受信メールを拒否します。"
           }
         },
         "websocket": {

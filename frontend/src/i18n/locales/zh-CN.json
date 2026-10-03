@@ -148,7 +148,7 @@
     "editingHint": "正在编辑此定时任务。保存后将保留其标识和执行历史。",
     "edit": "编辑",
     "editAria": "编辑定时任务：{{prompt}}",
-    "editRunningDisabled": "请等待此任务执行完成后再编辑。",
+    "editRunningDisabled": "请等待本次执行或投递完成后再编辑。",
     "deliveryInApp": "仅保留在 Vibe 中（不发送）",
     "deliveryNoChannels": "尚未配置已启用的投递渠道。请在“设置 → 渠道”中配置一个。",
     "deliveryChannelsLoadFailed": "无法加载已配置的投递渠道。",
@@ -224,7 +224,13 @@
     "verdictRecorded": "记于 {{when}}",
     "deliveryKnownTargetLabel": "已知目标",
     "deliveryKnownTargetPlaceholder": "选择已知目标…",
-    "deliverySuggestionKind_private_chat": "我的私聊"
+    "deliverySuggestionKind_private_chat": "我的私聊",
+    "deliveryTargetPlaceholder_email_address": "name@example.com",
+    "deliveryTargetPlaceholder_chat": "聊天、群组或用户 ID",
+    "deliveryTargetPlaceholder_channel": "频道 ID",
+    "deliveryTargetPlaceholder_destination": "会话 / 群 / 用户 id",
+    "deliveryTargetPlaceholder_slack_destination": "#频道、@用户或会话 ID",
+    "deliveryTargetKind_slack_destination": "目标"
   },
   "reports": {
     "badge": "报告",
@@ -672,6 +678,10 @@
           "max_attachments_per_email": {
             "label": "单封邮件附件数上限",
             "help": "一封邮件最多接受的附件数量（默认 5）。"
+          },
+          "trusted_authserv_id": {
+            "label": "受信任的认证服务器",
+            "help": "收件服务器的 authserv-id，例如 mx.google.com。邮件服务商必须移除外部伪造且使用此 ID 的 Authentication-Results 邮件头。启用 SPF 或 DKIM 验证时必填；留空会拒收邮件。"
           }
         },
         "websocket": {

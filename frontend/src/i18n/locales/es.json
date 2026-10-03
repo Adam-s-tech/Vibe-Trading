@@ -187,7 +187,7 @@
     "lastError": "Último error: {{error}}",
     "edit": "Editar",
     "editAria": "Editar ejecución programada: {{prompt}}",
-    "editRunningDisabled": "Espera a que termine esta ejecución antes de editarla.",
+    "editRunningDisabled": "Espera a que termine la ejecución o su entrega antes de editar.",
     "delete": "Eliminar",
     "deleteAria": "Eliminar ejecución programada: {{prompt}}",
     "confirmDelete": "Confirmar eliminación",
@@ -229,7 +229,13 @@
     "verdictRecorded": "a fecha de {{when}}",
     "deliveryKnownTargetLabel": "Destino conocido",
     "deliveryKnownTargetPlaceholder": "Elegir un destino conocido…",
-    "deliverySuggestionKind_private_chat": "Mi chat privado"
+    "deliverySuggestionKind_private_chat": "Mi chat privado",
+    "deliveryTargetPlaceholder_email_address": "name@example.com",
+    "deliveryTargetPlaceholder_chat": "ID de chat, grupo o usuario",
+    "deliveryTargetPlaceholder_channel": "ID del canal",
+    "deliveryTargetPlaceholder_destination": "chat, grupo, usuario, dirección o ID de canal",
+    "deliveryTargetPlaceholder_slack_destination": "#canal, @usuario o ID de conversación",
+    "deliveryTargetKind_slack_destination": "Destino"
   },
   "reports": {
     "badge": "Informes",
@@ -677,6 +683,10 @@
           "max_attachments_per_email": {
             "label": "Máx. adjuntos por correo",
             "help": "Cuántos adjuntos se aceptan de un mismo correo (predeterminado 5)."
+          },
+          "trusted_authserv_id": {
+            "label": "Servidor de autenticación de confianza",
+            "help": "authserv-id del servidor receptor, p. ej. mx.google.com. Tu proveedor debe eliminar las cabeceras Authentication-Results falsificadas entrantes que usen este ID. Obligatorio al verificar SPF o DKIM; vacío rechaza el correo entrante."
           }
         },
         "websocket": {

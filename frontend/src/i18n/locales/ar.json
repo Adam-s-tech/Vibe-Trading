@@ -148,7 +148,7 @@
     "editingHint": "أنت تعدّل هذا التشغيل المجدول. يحافظ الحفظ على هويته وسجل التنفيذ.",
     "edit": "تعديل",
     "editAria": "تعديل التشغيل المجدول: {{prompt}}",
-    "editRunningDisabled": "انتظر حتى ينتهي هذا التشغيل قبل تعديله.",
+    "editRunningDisabled": "انتظر انتهاء التشغيل أو التسليم قبل التعديل.",
     "deliveryInApp": "الاحتفاظ في Vibe فقط (عدم الإرسال)",
     "deliveryNoChannels": "لا توجد قنوات تسليم مفعّلة ومهيأة. هيّئ واحدة في الإعدادات > القنوات.",
     "deliveryChannelsLoadFailed": "تعذّر تحميل قنوات التسليم المهيأة.",
@@ -224,7 +224,13 @@
     "verdictRecorded": "اعتبارًا من {{when}}",
     "deliveryKnownTargetLabel": "وجهة معروفة",
     "deliveryKnownTargetPlaceholder": "اختر وجهة معروفة…",
-    "deliverySuggestionKind_private_chat": "محادثتي الخاصة"
+    "deliverySuggestionKind_private_chat": "محادثتي الخاصة",
+    "deliveryTargetPlaceholder_email_address": "name@example.com",
+    "deliveryTargetPlaceholder_chat": "معرّف المحادثة أو المجموعة أو المستخدم",
+    "deliveryTargetPlaceholder_channel": "معرّف القناة",
+    "deliveryTargetPlaceholder_destination": "معرّف محادثة / مجموعة / مستخدم",
+    "deliveryTargetPlaceholder_slack_destination": "#قناة أو @مستخدم أو معرّف محادثة",
+    "deliveryTargetKind_slack_destination": "الوجهة"
   },
   "reports": {
     "badge": "التقارير",
@@ -672,6 +678,10 @@
           "max_attachments_per_email": {
             "label": "الحد الأقصى للمرفقات لكل رسالة",
             "help": "عدد المرفقات المقبولة من رسالة واحدة (الافتراضي 5)."
+          },
+          "trusted_authserv_id": {
+            "label": "خادم المصادقة الموثوق",
+            "help": "معرّف authserv-id لخادم الاستلام، مثل mx.google.com. يجب على مزود البريد إزالة ترويسات Authentication-Results الواردة المزوّرة التي تحمل هذا المعرّف. مطلوب عند تفعيل SPF أو DKIM؛ تركه فارغًا يرفض البريد الوارد."
           }
         },
         "websocket": {

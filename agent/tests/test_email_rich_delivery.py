@@ -91,6 +91,7 @@ def test_per_message_pdf_keeps_report_out_of_body(monkeypatch):
             return b"%PDF-1.7\n%%EOF\n"
 
     monkeypatch.setitem(sys.modules, "weasyprint", SimpleNamespace(HTML=FakeHTML))
+    monkeypatch.setattr("src.channels.rich_text._WEASYPRINT_HTML", None)
 
     asyncio.run(
         channel.send(
@@ -116,3 +117,70 @@ def test_per_message_pdf_keeps_report_out_of_body(monkeypatch):
     assert len(pdf_parts) == 1
     assert pdf_parts[0].get_filename() == "vibe-trading-report.pdf"
     assert pdf_parts[0].get_payload(decode=True).startswith(b"%PDF")
+
+
+def test_pdf_failure_never_sends_report_as_plain_text(monkeypatch):
+    import pytest
+    import src.channels.rich_text as rich_text
+
+    channel = _channel()
+    sent = []
+    monkeypatch.setattr(channel, "_smtp_send", sent.append)
+    def fail(_content):
+        raise RuntimeError("PDF failed")
+    monkeypatch.setattr(rich_text, "render_email_pdf", fail)
+    with pytest.raises(RuntimeError, match="PDF failed"):
+        asyncio.run(channel.send(OutboundMessage(channel="email", chat_id="reader@example.test", content="private report", metadata={"delivery_format": "pdf"})))
+    assert not sent
+
+
+def test_pdf_render_runs_outside_event_loop(monkeypatch):
+    import threading
+    import src.channels.rich_text as rich_text
+
+    channel = _channel()
+    main_thread = threading.get_ident()
+    calls = []
+    def render(content):
+        assert threading.get_ident() != main_thread
+        calls.append(content)
+        return b"%PDF-1.7\n%%EOF\n"
+    monkeypatch.setattr(rich_text, "render_email_pdf", render)
+    monkeypatch.setattr(channel, "_smtp_send", lambda _msg: None)
+    asyncio.run(channel.send(OutboundMessage(channel="email", chat_id="reader@example.test", content="report", metadata={"delivery_format": "pdf"})))
+    assert calls == ["report"]
+
+
+def test_packaged_fallback_generates_real_multilingual_pdf(monkeypatch):
+    import pypdfium2 as pdfium
+    from src.channels.rich_text import render_email_pdf
+
+    monkeypatch.setitem(sys.modules, "weasyprint", None)
+    monkeypatch.setattr("src.channels.rich_text._WEASYPRINT_HTML", None)
+    data = render_email_pdf("# Daily report 每日报告\n\n中文报告 日本語 한국어\n\n| Asset | Weight |\n|---|---|\n| ABC | 12.5% |")
+    assert data.startswith(b"%PDF")
+    pdf = pdfium.PdfDocument(data)
+    extracted = "".join(pdf[i].get_textpage().get_text_range() for i in range(len(pdf)))
+    for expected in ["Daily report", "每日报告", "中文报告", "日本語", "한국어", "12.5%"]:
+        assert expected in extracted
+
+
+def test_scheduled_delivery_forces_proactive_mail_but_requires_consent(monkeypatch):
+    import pytest
+    import api_server
+    from src.api.scheduled_routes import _send_scheduled_briefing
+
+    channel = _channel()
+    channel.config.auto_reply_enabled = False
+    channel._last_subject_by_chat["reader@example.test"] = "old conversation"
+    sent = []
+    monkeypatch.setattr(channel, "_smtp_send", sent.append)
+    monkeypatch.setattr(api_server, "_channel_manager", SimpleNamespace(get_channel=lambda _name: channel), raising=False)
+    receipt = asyncio.run(_send_scheduled_briefing("email", "reader@example.test", "scheduled report", "html"))
+    assert receipt.status == "accepted"
+    assert len(sent) == 1
+    assert "scheduled report" in sent[0].get_body(preferencelist=("html",)).get_content()
+    channel.config.consent_granted = False
+    with pytest.raises(RuntimeError, match="consent_granted"):
+        asyncio.run(_send_scheduled_briefing("email", "reader@example.test", "private report"))
+    assert len(sent) == 1
