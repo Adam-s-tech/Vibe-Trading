@@ -689,6 +689,7 @@ export interface ScheduledRun {
   // app, which is what every monitor created before this did.
   delivery_channel: string | null;
   delivery_target: string | null;
+  delivery_format: "html" | "pdf" | null;
   delivery_target_ref: string | null;
   delivery_target_label: string | null;
   delivery_status: string;
@@ -711,6 +712,7 @@ export interface CreateScheduledRunRequest {
   config?: Record<string, unknown>;
   delivery_channel?: string | null;
   delivery_target?: string | null;
+  delivery_format?: "html" | "pdf" | null;
   delivery_target_ref?: string | null;
 }
 

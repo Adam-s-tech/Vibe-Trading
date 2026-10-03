@@ -48,6 +48,7 @@ function run(overrides: Partial<ScheduledRun> = {}): ScheduledRun {
     delivery_target: null,
     delivery_target_ref: null,
     delivery_target_label: null,
+    delivery_format: null,
     delivery_status: "none",
     delivery_error: null,
     delivery_updated_at: null,
@@ -338,6 +339,31 @@ describe("briefing delivery", () => {
     const body = mocked.createScheduledRun.mock.calls[0][0];
     expect(body.delivery_channel).toBe("telegram");
     expect(body.delivery_target).toBe("chat-9");
+  });
+
+  it("offers HTML and PDF presentation only for email delivery", async () => {
+    render(<Scheduled />);
+    fireEvent.change(screen.getByLabelText(/prompt/i), {
+      target: { value: "daily report" },
+    });
+    expect(screen.queryByLabelText(/email report format/i)).not.toBeInTheDocument();
+
+    const channel = screen.getByLabelText(/delivery channel/i);
+    await within(channel).findByRole("option", { name: "Email" });
+    fireEvent.change(channel, {
+      target: { value: "email" },
+    });
+    fireEvent.change(screen.getByLabelText(/recipient email address/i), {
+      target: { value: "reader@example.test" },
+    });
+    fireEvent.change(screen.getByLabelText(/email report format/i), {
+      target: { value: "pdf" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /schedule|create/i }));
+
+    await waitFor(() => expect(mocked.createScheduledRun).toHaveBeenCalled());
+    const body = mocked.createScheduledRun.mock.calls[0][0];
+    expect(body.delivery_format).toBe("pdf");
   });
 
   it("shows a monitor's delivery state, and shows nothing when it has none", async () => {
