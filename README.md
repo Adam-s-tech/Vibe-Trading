@@ -1650,6 +1650,8 @@ with `--host` / `--port`.
 
 `quantlib_call` VaR backtests count finite return/forecast pairs for coverage. Missing pairs break the consecutive-observation chain for independence testing; they never create a transition between the observations on either side of a gap.
 
+`quantlib_call` option analytics use an absolute **price** tolerance for implied-volatility inversion. A finite result must reprice the quote within that tolerance; the underlying analytics function returns `NaN` for an unconverged or volatility-unidentifiable quote rather than an asserted volatility.
+
 ### SWARM external MCP tools
 
 `run_swarm` workers can call operator-approved tools from external MCP servers. Configure the server-side allowlist in `VIBE_TRADING_SWARM_AGENT_CONFIG`, `~/.vibe-trading/swarm-agent.json`, or the fallback `~/.vibe-trading/agent.json`; then list remote tools in a swarm preset using the local MCP wrapper name, such as `mcp_internal_kb_search`. Caller-provided `variables` stay template data only and cannot inject MCP URLs, commands, environment variables, or allowlist overrides.
