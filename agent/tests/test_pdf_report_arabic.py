@@ -113,7 +113,9 @@ def test_arabic_render_failure_retains_old_target_and_cleans_temporary(tmp_path,
     else:
         def denied(*args):
             raise OSError("replace denied")
-        monkeypatch.setattr(pdf_report.os, "replace", denied)
+        from tests.module_os_helpers import patch_module_os
+
+        patch_module_os(monkeypatch, pdf_report, replace=denied)
     with pytest.raises((ValueError, OSError)):
         pdf_report.render_markdown_pdf(content, target)
     assert target.read_bytes() == b"previous PDF"
