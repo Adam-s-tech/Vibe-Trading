@@ -53,14 +53,17 @@
 
 > ⚠️ **Peringatan keamanan:** Akun X `VibeTrading_HKU`, proyek Virtuals `101845`, dan kontrak token `0x640BDBF77b6447E8b7DB7894cED84BD1c40571f4` bukan aset resmi Vibe-Trading. Kami tidak pernah meluncurkan atau mendukung token maupun memecoin apa pun. Jangan membeli, menghubungkan wallet, atau menandatangani apa pun. [Detail](SECURITY.md#official-channels--impersonation).
 
+- **2026-10-04** 🛠️ **Laporan terjadwal dan alur riset**: Edit tugas terjadwal dan pilih tujuan yang sudah dikonfigurasi; laporan email mendukung HTML atau lampiran PDF ([#1649](https://github.com/HKUDS/Vibe-Trading/pull/1649), [#1680](https://github.com/HKUDS/Vibe-Trading/pull/1680)).
+  Backtest menyediakan ringkasan terstruktur dan pembacaan artefak per halaman ([#1646](https://github.com/HKUDS/Vibe-Trading/pull/1646), [#1647](https://github.com/HKUDS/Vibe-Trading/pull/1647)). Perbaikan mencakup cuplikan pencarian memori, panduan lokasi ekspor, pemberitahuan pemangkasan data makro, risiko bulanan, turnover saat membalik posisi atau masuk kembali setelah menjadi kas, akurasi IV, celah VaR, pembaruan instalasi VCS, serta pemblokiran order opsi Robinhood yang belum didukung.
+
 - **2026-10-03** 🛠️ **Keandalan riset, laporan, dan data**: masalah pencarian sesi berbahasa Mandarin, Jepang, dan Korea, pengaturan kanal, penilaian posisi broker, serta penulisan berkas yang menghambat penggunaan sehari-hari telah diperbaiki. PDF menyertakan font CJK, Swarm memvalidasi masukan preset dan memisahkan keluaran tiap tugas, serta hasil alat yang digunakan kembali tetap tersedia setelah pemadatan konteks ([#1683](https://github.com/HKUDS/Vibe-Trading/pull/1683), [#1455](https://github.com/HKUDS/Vibe-Trading/pull/1455), [#1635](https://github.com/HKUDS/Vibe-Trading/pull/1635)). Backtest memakai dasar penyesuaian harga yang konsisten, cache lokal membedakan sumber, dan batas aset tunggal serta risiko mingguan/bulanan mengikuti pengaturan yang dinyatakan. Audit mempertahankan tanda kerugian, verifikasi angka memakai keluaran mesin saat ini dan referensi daftar yang tepat, serta Stooq mencoba lagi setelah masa tunggu akibat penolakan ([#1684](https://github.com/HKUDS/Vibe-Trading/pull/1684), [#1650](https://github.com/HKUDS/Vibe-Trading/pull/1650), [#1685](https://github.com/HKUDS/Vibe-Trading/pull/1685), [#1640](https://github.com/HKUDS/Vibe-Trading/pull/1640)).
 
 - **2026-10-02** 🛠️ **Perbaikan backtest dan audit laporan**: penulisan berkas strategi mempertahankan asal model tanpa gagal ([#1673](https://github.com/HKUDS/Vibe-Trading/pull/1673)), dan drawdown serta Sharpe Monte Carlo mencakup modal awal ([#1664](https://github.com/HKUDS/Vibe-Trading/pull/1664)). Audit mempertahankan angka negatif akuntansi dalam tanda kurung beserta satuannya ([#1663](https://github.com/HKUDS/Vibe-Trading/pull/1663)); artefak verifikasi angka mencatat pemeriksaan deklaratif yang terpicu ([#1661](https://github.com/HKUDS/Vibe-Trading/pull/1661)); laporan kesehatan sumber data publik memuat alasan kegagalan tanpa informasi sensitif ([#1643](https://github.com/HKUDS/Vibe-Trading/pull/1643)). Dokumentasi alat berbahasa Indonesia diselaraskan dengan registri ([#1671](https://github.com/HKUDS/Vibe-Trading/pull/1671)).
 
-- **2026-10-01** ✅ **Ketepatan data dan backtest yang dapat direproduksi**: konversi harga tersesuaikan saham A menolak kasus ambigu dengan satu bar ([#1551](https://github.com/HKUDS/Vibe-Trading/pull/1551)). Nilai arus Southbound Eastmoney dikonversi dari juta HKD dan respons gagal tidak lagi dianggap data kosong ([#1486](https://github.com/HKUDS/Vibe-Trading/pull/1486)). Sumber alternatif Northbound membedakan nilai transaksi dari arus bersih setelah 2024-08-19 ([#1484](https://github.com/HKUDS/Vibe-Trading/pull/1484)). Hanya posisi Binance tanpa harga yang ditandai tidak lengkap, tanpa memengaruhi broker lain ([#1505](https://github.com/HKUDS/Vibe-Trading/pull/1505)). Kartu eksekusi mencatat asal model dan memperingatkan jika batas waktu pelatihan tidak diketahui atau di luar periode pengujian ([#1618](https://github.com/HKUDS/Vibe-Trading/pull/1618)).
-
 <details>
 <summary>Berita sebelumnya</summary>
+
+- **2026-10-01** ✅ **Ketepatan data dan backtest yang dapat direproduksi**: konversi harga tersesuaikan saham A menolak kasus ambigu dengan satu bar ([#1551](https://github.com/HKUDS/Vibe-Trading/pull/1551)). Nilai arus Southbound Eastmoney dikonversi dari juta HKD dan respons gagal tidak lagi dianggap data kosong ([#1486](https://github.com/HKUDS/Vibe-Trading/pull/1486)). Sumber alternatif Northbound membedakan nilai transaksi dari arus bersih setelah 2024-08-19 ([#1484](https://github.com/HKUDS/Vibe-Trading/pull/1484)). Hanya posisi Binance tanpa harga yang ditandai tidak lengkap, tanpa memengaruhi broker lain ([#1505](https://github.com/HKUDS/Vibe-Trading/pull/1505)). Kartu eksekusi mencatat asal model dan memperingatkan jika batas waktu pelatihan tidak diketahui atau di luar periode pengujian ([#1618](https://github.com/HKUDS/Vibe-Trading/pull/1618)).
 
 - **2026-09-30** 🛠️ **Feishu di Web UI, faktor momentum yang membaca harga hari ini, dan profit factor untuk backtest tanpa kerugian**: Feishu bergabung dengan pengaturan kanal terpandu, dengan uji koneksi mandiri dan hot reload yang menutup WebSocket lama ([#1572](https://github.com/HKUDS/Vibe-Trading/pull/1572)). `academic_carhart_mom` mengurangkan return 1 bulan dari return 12 bulan sehingga bergerak mengikuti harga penutupan hari ini; kini nilainya adalah return dari 12 bulan lalu hingga 1 bulan lalu ([#1578](https://github.com/HKUDS/Vibe-Trading/pull/1578)). Backtest tanpa transaksi rugi melaporkan profit factor sebagai tidak terdefinisi, bukan 0.0 yang menempatkannya di urutan terakhir ([#1602](https://github.com/HKUDS/Vibe-Trading/pull/1602)). Halaman anti-bot Stooq kini menghentikan semua permintaan berikutnya dalam proses, bukan hanya baris log ([#1637](https://github.com/HKUDS/Vibe-Trading/pull/1637)); hasil alat MCP sampai ke agen satu kali, bukan hingga empat kali ([#1634](https://github.com/HKUDS/Vibe-Trading/pull/1634)); dan bagian pertama `loop.py` dipindahkan ke modulnya sendiri ([#1636](https://github.com/HKUDS/Vibe-Trading/pull/1636)).
 
@@ -1574,7 +1577,7 @@ Mengirim `{}` akan menjadwalkan template memakai cadence yang disarankan beserta
 <a id="-mcp-plugin"></a>
 ## 🔌 Plugin MCP
 
-Vibe-Trading mengekspos 75 tool MCP untuk client yang kompatibel MCP. Berjalan sebagai subprocess stdio — tidak perlu setup server. Tool riset inti bekerja tanpa API key untuk HK/AS/crypto; tool connector trading menggunakan profil connector terpilih, dan `run_swarm` memerlukan LLM key.
+Vibe-Trading mengekspos 76 tool MCP untuk client yang kompatibel MCP. Berjalan sebagai subprocess stdio — tidak perlu setup server. Tool riset inti bekerja tanpa API key untuk HK/AS/crypto; tool connector trading menggunakan profil connector terpilih, dan `run_swarm` memerlukan LLM key.
 
 **Environment variable:** client menjalankan server sendiri, sehingga `export` dari shell tidak pernah sampai ke proses tersebut — atur di block `env` client. Kode backtest yang dihasilkan dibatasi ke root run yang diizinkan, jadi menulis hasil ke workspace Anda sendiri memerlukan `VIBE_TRADING_ALLOWED_RUN_ROOTS`:
 
@@ -2017,7 +2020,7 @@ Vibe-Trading/
 ├── agent/                          # Backend (Python)
 │   ├── cli/                        # CLI package — interactive TUI + subcommands
 │   ├── api_server.py               # FastAPI server — runs, sessions, upload, swarm, SSE
-│   ├── mcp_server.py               # MCP server — 75 tools for OpenClaw / Claude Desktop
+│   ├── mcp_server.py               # MCP server — 76 tools for OpenClaw / Claude Desktop
 │   │
 │   ├── src/
 │   │   ├── agent/                  # ReAct agent core
@@ -2032,7 +2035,7 @@ Vibe-Trading/
 │   │   ├── memory/                 # Cross-session persistent memory
 │   │   │   └── persistent.py       #   file-based memory (~/.vibe-trading/memory/)
 │   │   │
-│   │   ├── tools/                  # 108 auto-discovered agent tools
+│   │   ├── tools/                  # 109 auto-discovered agent tools
 │   │   │   ├── backtest_tool.py    #   run backtests
 │   │   │   ├── remember_tool.py    #   cross-session memory (save/recall/forget)
 │   │   │   ├── skill_writer_tool.py #  skill CRUD (save/patch/delete/file)

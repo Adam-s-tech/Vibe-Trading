@@ -52,14 +52,17 @@
 
 > ⚠️ **Advertencia de seguridad:** la cuenta de X `VibeTrading_HKU`, el proyecto de Virtuals `101845` y el contrato de token `0x640BDBF77b6447E8b7DB7894cED84BD1c40571f4` no son activos oficiales de Vibe-Trading. Nunca hemos lanzado ni respaldado ningún token o memecoin. No compres, conectes una wallet ni firmes nada. [Detalles](SECURITY.md#official-channels--impersonation).
 
+- **2026-10-04** 🛠️ **Informes programados y flujos de investigación**: Edita tareas programadas y elige un destino configurado; los informes por email admiten HTML o archivos PDF adjuntos ([#1649](https://github.com/HKUDS/Vibe-Trading/pull/1649), [#1680](https://github.com/HKUDS/Vibe-Trading/pull/1680)).
+  Los backtests ofrecen resúmenes estructurados y lectura paginada de resultados ([#1646](https://github.com/HKUDS/Vibe-Trading/pull/1646), [#1647](https://github.com/HKUDS/Vibe-Trading/pull/1647)). Se corrigen fragmentos de búsqueda, indicaciones de exportación, avisos de datos macro truncados, riesgo mensual, rotación al invertir posiciones o reinvertir tras pasar a efectivo, precisión de IV, huecos de VaR, actualizaciones desde VCS y el bloqueo de órdenes de opciones no admitidas en Robinhood.
+
 - **2026-10-03** 🛠️ **Más fiabilidad en investigación, informes y datos**: se corrigen problemas de búsqueda de sesiones en chino, japonés y coreano, configuración de canales, valoración de posiciones del bróker y escritura de archivos que bloqueaban el uso diario. Los PDF incluyen fuentes CJK, Swarm valida las entradas de sus plantillas y separa los archivos por tarea, y los resultados reutilizados de herramientas sobreviven a la compactación del contexto ([#1683](https://github.com/HKUDS/Vibe-Trading/pull/1683), [#1455](https://github.com/HKUDS/Vibe-Trading/pull/1455), [#1635](https://github.com/HKUDS/Vibe-Trading/pull/1635)). Los backtests mantienen una base de ajuste uniforme, la caché local distingue las fuentes y los límites de un solo activo y el riesgo semanal/mensual respetan la configuración declarada. Las auditorías conservan el signo de las pérdidas, la verificación numérica usa la salida actual del motor y referencias exactas a listas, y Stooq vuelve a intentar tras la espera por rechazo ([#1684](https://github.com/HKUDS/Vibe-Trading/pull/1684), [#1650](https://github.com/HKUDS/Vibe-Trading/pull/1650), [#1685](https://github.com/HKUDS/Vibe-Trading/pull/1685), [#1640](https://github.com/HKUDS/Vibe-Trading/pull/1640)).
 
 - **2026-10-02** 🛠️ **Correcciones en backtests y auditorías**: la escritura de estrategias conserva la procedencia del modelo sin fallar ([#1673](https://github.com/HKUDS/Vibe-Trading/pull/1673)), y el drawdown y Sharpe de Monte Carlo incluyen el capital inicial ([#1664](https://github.com/HKUDS/Vibe-Trading/pull/1664)). La auditoría conserva los negativos contables entre paréntesis y sus unidades ([#1663](https://github.com/HKUDS/Vibe-Trading/pull/1663)); los artefactos de verificación numérica registran las comprobaciones declaradas activadas ([#1661](https://github.com/HKUDS/Vibe-Trading/pull/1661)); los informes públicos de salud de fuentes incluyen motivos de fallo sin información sensible ([#1643](https://github.com/HKUDS/Vibe-Trading/pull/1643)). La documentación de herramientas en indonesio coincide con el registro ([#1671](https://github.com/HKUDS/Vibe-Trading/pull/1671)).
 
-- **2026-10-01** ✅ **Datos correctos y backtests reproducibles**: la conversión de precios ajustados de acciones A rechaza casos ambiguos de una sola vela ([#1551](https://github.com/HKUDS/Vibe-Trading/pull/1551)). Los importes de flujos hacia Hong Kong de Eastmoney se convierten desde millones de HKD y las respuestas fallidas ya no parecen vacías ([#1486](https://github.com/HKUDS/Vibe-Trading/pull/1486)). La fuente alternativa de flujos hacia China distingue el volumen monetario del flujo neto después del 2024-08-19 ([#1484](https://github.com/HKUDS/Vibe-Trading/pull/1484)). Solo las posiciones sin precio de Binance se marcan como incompletas, sin penalizar a otros brókeres ([#1505](https://github.com/HKUDS/Vibe-Trading/pull/1505)). Las tarjetas de ejecución registran la procedencia del modelo y advierten si la fecha límite de entrenamiento es desconocida o está fuera del período probado ([#1618](https://github.com/HKUDS/Vibe-Trading/pull/1618)).
-
 <details>
 <summary>Noticias anteriores</summary>
+
+- **2026-10-01** ✅ **Datos correctos y backtests reproducibles**: la conversión de precios ajustados de acciones A rechaza casos ambiguos de una sola vela ([#1551](https://github.com/HKUDS/Vibe-Trading/pull/1551)). Los importes de flujos hacia Hong Kong de Eastmoney se convierten desde millones de HKD y las respuestas fallidas ya no parecen vacías ([#1486](https://github.com/HKUDS/Vibe-Trading/pull/1486)). La fuente alternativa de flujos hacia China distingue el volumen monetario del flujo neto después del 2024-08-19 ([#1484](https://github.com/HKUDS/Vibe-Trading/pull/1484)). Solo las posiciones sin precio de Binance se marcan como incompletas, sin penalizar a otros brókeres ([#1505](https://github.com/HKUDS/Vibe-Trading/pull/1505)). Las tarjetas de ejecución registran la procedencia del modelo y advierten si la fecha límite de entrenamiento es desconocida o está fuera del período probado ([#1618](https://github.com/HKUDS/Vibe-Trading/pull/1618)).
 
 - **2026-09-30** 🛠️ **Feishu en la interfaz web, un factor de momentum que leía el precio de hoy y el profit factor de una ejecución sin pérdidas**: Feishu se suma a la configuración guiada de canales, con una prueba de conexión independiente y una recarga en caliente que cierra el WebSocket anterior ([#1572](https://github.com/HKUDS/Vibe-Trading/pull/1572)). `academic_carhart_mom` restaba el rendimiento de 1 mes al de 12 meses, así que se movía con el cierre de hoy; ahora es el rendimiento desde hace 12 meses hasta hace 1 mes ([#1578](https://github.com/HKUDS/Vibe-Trading/pull/1578)). Una ejecución sin operaciones perdedoras informa su profit factor como indefinido en lugar de 0.0, que la colocaba en último lugar ([#1602](https://github.com/HKUDS/Vibe-Trading/pull/1602)). La página antibots de Stooq ahora detiene todas las solicitudes posteriores del proceso, no solo la línea de registro ([#1637](https://github.com/HKUDS/Vibe-Trading/pull/1637)); los resultados de herramientas MCP llegan al agente una vez en lugar de hasta cuatro ([#1634](https://github.com/HKUDS/Vibe-Trading/pull/1634)); y la primera parte de `loop.py` pasa a su propio módulo ([#1636](https://github.com/HKUDS/Vibe-Trading/pull/1636)).
 
@@ -1328,7 +1331,7 @@ Enviar `{}` programa una plantilla con su propia cadencia sugerida y sus valores
 
 ## 🔌 MCP Plugin
 
-Vibe-Trading expone 75 MCP tools para cualquier cliente compatible con MCP. Se ejecuta como un subproceso stdio — no requiere configuración de servidor. Las herramientas de investigación principales funcionan sin ninguna API key para HK/US/crypto; las herramientas del conector de trading usan el perfil de conector seleccionado, y `run_swarm` necesita una LLM key.
+Vibe-Trading expone 76 MCP tools para cualquier cliente compatible con MCP. Se ejecuta como un subproceso stdio — no requiere configuración de servidor. Las herramientas de investigación principales funcionan sin ninguna API key para HK/US/crypto; las herramientas del conector de trading usan el perfil de conector seleccionado, y `run_swarm` necesita una LLM key.
 
 **Variables de entorno:** el cliente lanza el servidor él mismo, así que un `export` de shell nunca le llega — configúralas en el bloque `env` del cliente. El código de backtest generado está confinado a los run roots permitidos, así que para escribir resultados en un workspace propio necesitas `VIBE_TRADING_ALLOWED_RUN_ROOTS`:
 
@@ -1772,7 +1775,7 @@ Vibe-Trading/
 ├── agent/                          # Backend (Python)
 │   ├── cli/                        # Paquete CLI — TUI interactiva + subcomandos
 │   ├── api_server.py               # Servidor FastAPI — runs, sesiones, carga, swarm, SSE
-│   ├── mcp_server.py               # Servidor MCP — 75 herramientas para OpenClaw / Claude Desktop
+│   ├── mcp_server.py               # Servidor MCP — 76 herramientas para OpenClaw / Claude Desktop
 │   │
 │   ├── src/
 │   │   ├── agent/                  # Núcleo del agente ReAct
@@ -1787,7 +1790,7 @@ Vibe-Trading/
 │   │   ├── memory/                 # Memoria persistente entre sesiones
 │   │   │   └── persistent.py       #   memoria basada en archivos (~/.vibe-trading/memory/)
 │   │   │
-│   │   ├── tools/                  # 108 herramientas de agente autodescubiertas
+│   │   ├── tools/                  # 109 herramientas de agente autodescubiertas
 │   │   │   ├── backtest_tool.py    #   ejecuta backtests
 │   │   │   ├── remember_tool.py    #   memoria entre sesiones (save/recall/forget)
 │   │   │   ├── skill_writer_tool.py #  CRUD de skills (save/patch/delete/file)

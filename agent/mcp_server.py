@@ -6,7 +6,7 @@ Zero API key required for HK/US/crypto research markets (yfinance, OKX,
 AKShare are free). Trading connector tools are profile-scoped and require the
 selected connector's own local app or OAuth setup.
 
-Surfaces 75 tools: skills, research goals, strategy discovery,
+Surfaces 76 tools: skills, research goals, strategy discovery,
 backtest/factor/options/pattern
 analysis, market data, fundamentals & capital-flow & news & discovery
 (get_fund_flow / get_dragon_tiger / get_northbound_flow / get_southbound_flow /
@@ -808,10 +808,11 @@ def backtest(run_dir: str) -> str:
 
     Returns metrics (Sharpe, return, drawdown, etc.) and artifact paths.
     On success the envelope also carries a structured ``summary``: the full
-    metrics object, run metadata (run_id/codes/dates/interval/initial_cash),
+    scalar metrics plus structured_metrics and validation, run metadata,
     an ``equity_preview`` (at most 50 equal-stride points, first and last
     pinned) and ``artifact_paths`` including per-symbol ohlcv files — read
-    these instead of parsing ``stdout``.
+    these instead of parsing ``stdout``. Large envelopes omit logs first
+    and reduce preview points; any omitted summary is explicitly reported.
 
     Args:
         run_dir: Path to the run directory containing config.json and code/.
@@ -1226,10 +1227,12 @@ def read_run_artifact(
       ``sha256`` and ``manifest_size_bytes`` for a manifest-listed artifact.
 
     Cells arrive typed (int / float / null / string). Every envelope is
-    serialized within a bounded byte budget (~120K characters): an oversized
+    serialized within the shared model-result character budget: an oversized
     page shrinks to whole records with honest ``truncated`` / ``next_offset``
     metadata rather than cutting mid-JSON. Errors return
-    ``{"ok": false, "error", "hint"}``.
+    ``{"ok": false, "error", "hint"}``. Small JSON artifacts return their
+    parsed object; oversized JSON returns size metadata in meta mode and an
+    actionable error otherwise.
 
     Args:
         run_dir: Run directory a backtest/tool call returned.
@@ -1237,7 +1240,7 @@ def read_run_artifact(
             anything else — including path traversal — is refused.
         format: "rows" (default), "downsample" or "meta".
         offset: First row index for "rows" mode (default 0).
-        max_rows: Page/sample size, clamped to [1, 5000] (default 1000).
+        max_rows: Page size [1, 5000] (default 1000); samples retain at least two endpoints.
         columns: Optional column projection; unknown names are refused with
             the valid list.
     """
@@ -2370,7 +2373,8 @@ def get_macro_series(
         end_date: Inclusive window end, YYYY-MM-DD. Omit for the latest date.
         limit: Maximum number of most-recent observations to return (max
             5000). A series longer than that is capped and says so in the
-            result: truncated, observations_available, and a hint.
+            result: truncated, observations_available, and a hint. The shared
+            character budget may return fewer rows; count reports delivered rows.
     """
     params: dict[str, Any] = {"series_id": series_id, "limit": limit}
     if start_date:
