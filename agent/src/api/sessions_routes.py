@@ -42,9 +42,16 @@ class SessionResponse(BaseModel):
     last_attempt_id: Optional[str] = None
 
 
+# An interactive message is a prompt, not a tool result, so it is capped only to bound
+# the request body. 100k characters is roughly 25k tokens - well inside any supported
+# model's context. The scheduled-run path (CreateScheduledRunRequest.prompt) has no cap
+# at all; this keeps the two within sight of each other rather than 20x apart.
+MAX_MESSAGE_CHARS = 100_000
+
+
 class SendMessageRequest(BaseModel):
     """Send chat message: natural-language strategy description."""
-    content: str = Field(..., description="Natural language strategy description", min_length=1, max_length=100_000)
+    content: str = Field(..., description="Natural language strategy description", min_length=1, max_length=MAX_MESSAGE_CHARS)
 
 
 class MessageResponse(BaseModel):
