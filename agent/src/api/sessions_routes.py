@@ -44,7 +44,7 @@ class SessionResponse(BaseModel):
 
 class SendMessageRequest(BaseModel):
     """Send chat message: natural-language strategy description."""
-    content: str = Field(..., description="Natural language strategy description", min_length=1, max_length=5000)
+    content: str = Field(..., description="Natural language strategy description", min_length=1, max_length=100_000)
 
 
 class MessageResponse(BaseModel):
