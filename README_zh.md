@@ -52,7 +52,7 @@
 
 > ⚠️ **安全警告：** X 账号 `VibeTrading_HKU`、Virtuals 项目 `101845` 及代币合约 `0x640BDBF77b6447E8b7DB7894cED84BD1c40571f4` 均非 Vibe-Trading 官方。我们从未发行或背书任何代币或 meme 币。请勿购买、连接钱包或签名。[详细说明](SECURITY.md#official-channels--impersonation)。
 
-- **2026-10-05** 🛠️ **研究输入与计算修复**：聊天支持更长的研究输入，超限时以当前语言提示缩短（[#1701](https://github.com/HKUDS/Vibe-Trading/pull/1701)）。回测 Sortino 使用全样本下行偏差；分组验证剔除重叠标签，协方差权重保持有限，影子账户 RSI 使用 Wilder 初始均值，记忆支持按文件名删除。
+- **2026-10-05** 🛠️ **研究输入与计算修复**：聊天支持更长的研究输入，超限时以当前语言提示缩短（[#1701](https://github.com/HKUDS/Vibe-Trading/pull/1701)）。回测 Sortino 使用全样本下行偏差；分组验证剔除重叠标签，协方差权重保持有限，影子账户 RSI 使用 Wilder 初始均值，记忆支持按文件名删除。 报告误用调用别名时，纠正提示提供真实字段引用（[#1638](https://github.com/HKUDS/Vibe-Trading/pull/1638)），数值校验保持不变。
 
 - **2026-10-04** 🛠️ **定时报告与研究流程完善**：定时任务支持编辑并选择已配置的交付目标，邮件报告可选 HTML 或 PDF 附件（[#1649](https://github.com/HKUDS/Vibe-Trading/pull/1649), [#1680](https://github.com/HKUDS/Vibe-Trading/pull/1680)）。
   回测提供结构化摘要与产物分页读取（[#1646](https://github.com/HKUDS/Vibe-Trading/pull/1646), [#1647](https://github.com/HKUDS/Vibe-Trading/pull/1647)）；同时修复记忆搜索片段、导出路径提示、宏观数据截断说明、月线风险、反向持仓及清仓后重新入场的换手率、隐含波动率精度、VaR 缺口、源码安装更新，以及 Robinhood 不受支持的期权下单拦截。

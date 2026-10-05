@@ -52,7 +52,7 @@
 
 > ⚠️ **보안 경고:** X 계정 `VibeTrading_HKU`, Virtuals 프로젝트 `101845`, 토큰 컨트랙트 `0x640BDBF77b6447E8b7DB7894cED84BD1c40571f4`는 모두 Vibe-Trading 공식과 무관합니다. Vibe-Trading은 어떠한 토큰이나 밈코인도 발행하거나 공식적으로 지지한 적이 없습니다. 해당 토큰을 구매하거나 지갑을 연결하거나 어떠한 서명도 하지 마세요. [자세히 보기](SECURITY.md#official-channels--impersonation).
 
-- **2026-10-05** 🛠️ **리서치 입력과 계산 수정**: 더 긴 리서치 입력을 지원하며 한도를 넘으면 현재 언어로 줄이도록 안내합니다([#1701](https://github.com/HKUDS/Vibe-Trading/pull/1701)). Sortino는 전체 기간의 하방 편차를 사용하고 그룹 검증은 겹치는 레이블을 제외합니다. 공분산 가중치, Wilder 초기 평균을 사용하는 RSI, 파일명으로 메모리 삭제도 개선했습니다.
+- **2026-10-05** 🛠️ **리서치 입력과 계산 수정**: 더 긴 리서치 입력을 지원하며 한도를 넘으면 현재 언어로 줄이도록 안내합니다([#1701](https://github.com/HKUDS/Vibe-Trading/pull/1701)). Sortino는 전체 기간의 하방 편차를 사용하고 그룹 검증은 겹치는 레이블을 제외합니다. 공분산 가중치, Wilder 초기 평균을 사용하는 RSI, 파일명으로 메모리 삭제도 개선했습니다. 잘못된 호출 별칭을 인용하면 수정할 수 있도록 실제 필드 참조를 안내하며 수치 검증 규칙은 유지합니다([#1638](https://github.com/HKUDS/Vibe-Trading/pull/1638)).
 
 - **2026-10-04** 🛠️ **예약 보고서와 리서치 흐름 개선**: 예약 작업을 편집하고 설정된 수신 대상을 선택할 수 있습니다. 이메일 보고서는 HTML 또는 PDF 첨부를 지원합니다([#1649](https://github.com/HKUDS/Vibe-Trading/pull/1649), [#1680](https://github.com/HKUDS/Vibe-Trading/pull/1680)).
   백테스트에 구조화된 요약과 결과 파일 페이지 읽기를 추가했습니다([#1646](https://github.com/HKUDS/Vibe-Trading/pull/1646), [#1647](https://github.com/HKUDS/Vibe-Trading/pull/1647)). 메모리 검색 미리보기, 내보내기 경로 안내, 매크로 데이터 잘림 표시, 월봉 리스크, 포지션 반전과 현금화 후 재진입의 회전율, IV 정확도, VaR 결측 구간, VCS 설치 업데이트, Robinhood의 미지원 옵션 주문 차단도 수정했습니다.

@@ -52,7 +52,7 @@
 
 > ⚠️ **セキュリティ警告：** Xアカウント `VibeTrading_HKU`、Virtualsプロジェクト `101845`、およびトークンコントラクト `0x640BDBF77b6447E8b7DB7894cED84BD1c40571f4` は、いずれもVibe-Trading公式のものではありません。Vibe-Tradingはこれまで、いかなるトークンやミームコインも発行・公認していません。購入、ウォレットの接続、署名は行わないでください。[詳細](SECURITY.md#official-channels--impersonation)
 
-- **2026-10-05** 🛠️ **調査入力と計算の修正**：チャットで長い調査入力に対応し、上限を超えた場合は現在の言語で短縮を案内します（[#1701](https://github.com/HKUDS/Vibe-Trading/pull/1701)）。Sortino は全期間の下方偏差を使用し、グループ検証は重複ラベルを除外します。共分散ウェイト、Wilder 初期平均による RSI、ファイル名によるメモリ削除も改善しました。
+- **2026-10-05** 🛠️ **調査入力と計算の修正**：チャットで長い調査入力に対応し、上限を超えた場合は現在の言語で短縮を案内します（[#1701](https://github.com/HKUDS/Vibe-Trading/pull/1701)）。Sortino は全期間の下方偏差を使用し、グループ検証は重複ラベルを除外します。共分散ウェイト、Wilder 初期平均による RSI、ファイル名によるメモリ削除も改善しました。 呼び出しの別名を誤って引用した場合、修正用に実際のフィールド参照を提示します（[#1638](https://github.com/HKUDS/Vibe-Trading/pull/1638)）。数値の検証規則は維持されます。
 
 - **2026-10-04** 🛠️ **定期レポートと調査フローの改善**：定期タスクを編集し、設定済みの送信先を選択できます。メールレポートは HTML または PDF 添付に対応しました（[#1649](https://github.com/HKUDS/Vibe-Trading/pull/1649), [#1680](https://github.com/HKUDS/Vibe-Trading/pull/1680)）。
   バックテストに構造化サマリーと成果物のページ読み取りを追加（[#1646](https://github.com/HKUDS/Vibe-Trading/pull/1646), [#1647](https://github.com/HKUDS/Vibe-Trading/pull/1647)）。メモリ検索の抜粋、エクスポート先の案内、マクロデータの切り詰め表示、月足リスク、売買方向の反転・現金化後の再投資の回転率、IV 精度、VaR の欠損区間、VCS インストールの更新、Robinhood の未対応オプション注文の遮断も修正しました。

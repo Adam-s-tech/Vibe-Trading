@@ -99,9 +99,6 @@ _OTHER_CURRENCY_PREFIXES = "港美日欧韩台新加澳"
 #: Relative band a value must fall in to count as matching evidence.
 _TOLERANCE = 0.005
 
-#: Most exact refs a correction lists for a ref whose call id names nothing.
-_MAX_FIELD_REF_CANDIDATES = 5
-
 #: A plain integer is read as a price only for an instrument quoted in the
 #: thousands (600519.SH, an index, BTC). Below that, a prose integer is a window,
 #: a horizon or a count ("20 日均线", "200-day") and stays unchecked.
@@ -1242,8 +1239,9 @@ class _PolicyMixin:
         no evidence. This only lists where the field really lives, so the next
         draft can copy an exact ref; it grants nothing, and the figure stays
         rejected until it is re-declared with one of them. Refs whose value the
-        figure matches come first; at most :data:`_MAX_FIELD_REF_CANDIDATES` are
-        returned.
+        figure matches come first; at most :data:`_MAX_CALL_REF_CANDIDATES` are
+        returned. Candidates keep the same symbol and kind restrictions as a
+        real field ref, so the correction cannot recommend an unusable ref.
         """
         key = (ref or "").strip()
         if "::" not in key:
@@ -1253,22 +1251,22 @@ class _PolicyMixin:
             return []
         records, entries = self._field_sources(field, symbol)
         found: dict[str, list[float]] = {}
+        money = bool(figure.currency and not figure.percent)
         for record in records:
-            if record.call_id and record.field:
+            if record.call_id and record.field and self._kind_fits(record, figure):
                 label = self._ref_source(record.call_id, record.field, record.scope)[1]
                 found.setdefault(label, []).append(float(record.value))
-        for entry in entries:
+        for entry in entries if not (money or figure.column) else ():
             if entry.get("call_id") and entry.get("field"):
                 label = self._ref_source(str(entry["call_id"]), str(entry["field"]), None)[1]
                 found.setdefault(label, []).append(float(entry["value"]))
-        money = bool(figure.currency and not figure.percent)
         compatible = {
             label
             for label, values in found.items()
             if self._matches_evidence(figure, values, [] if money else values)
         }
         ranked = sorted(found, key=lambda label: (label not in compatible, label))
-        return ranked[:_MAX_FIELD_REF_CANDIDATES]
+        return ranked[:_MAX_CALL_REF_CANDIDATES]
 
     def _names_session_source(self, name: str) -> bool:
         """Whether ``name`` is a call id, tool name or backtest run of this session."""
