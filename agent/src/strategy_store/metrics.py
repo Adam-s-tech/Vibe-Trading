@@ -74,11 +74,9 @@ def compute_decay_metrics(
         result["rolling_ic_mean"] = round(rolling_mean, 6)
 
         # baseline_ics and rolling_ics are the oldest/newest 5 entries, so
-        # with fewer than 10 they share observations -- at 3-9 entries
-        # they're the same window read twice, making ic_ratio exactly 1.0
-        # regardless of how much the IC actually moved. Require the two
-        # windows to be disjoint before trusting their ratio.
-        #
+        # with fewer than 10 they share observations. At 3-5 entries they
+        # are identical; at 6-9 the overlap dilutes the measured change.
+        # Require disjoint windows before comparing baseline and recent IC.
         # baseline_mean > 0, not != 0: with a negative baseline, dividing
         # two negatives gives a positive ratio, so a rolling IC that got
         # much MORE negative (real decay) produces a large ic_ratio that

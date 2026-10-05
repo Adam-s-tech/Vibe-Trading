@@ -69,11 +69,11 @@ def test_ic_ratio_still_computed_for_a_positive_baseline():
     assert metrics["ic_ratio"] == pytest.approx(0.5)
 
 
-@pytest.mark.parametrize("n", [3, 4, 5, 6, 9])
+@pytest.mark.parametrize("n", range(3, 10))
 def test_ic_ratio_is_none_when_baseline_and_rolling_windows_overlap(n):
     """With fewer than 10 entries, the oldest-5 and newest-5 windows share
-    observations -- at 3-9 entries they're the same data read twice, which
-    made ic_ratio exactly 1.0 no matter how much the IC actually moved. A
+    observations. At 3-5 entries they are identical; at 6-9 the overlap
+    dilutes the measured change. A
     strategy whose IC just collapsed from 0.08 to 0.001 must not come back
     reading as unchanged."""
     history_newest_first = [BenchResult(ic_mean=0.001)] + [

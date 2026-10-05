@@ -419,7 +419,7 @@ def test_group_purged_kfold_splits_purges_a_forward_looking_label():
 
     splits = list(
         group_purged_kfold_splits(
-            dates, label_end_times, n_folds=5, embargo_fraction=0.3
+            dates, label_end_times=label_end_times, n_folds=5, embargo_fraction=0.3
         )
     )
 
@@ -438,7 +438,7 @@ def test_group_purged_kfold_splits_reports_purged_count():
 
     splits = list(
         group_purged_kfold_splits(
-            dates, label_end_times, n_folds=5, embargo_fraction=0.3
+            dates, label_end_times=label_end_times, n_folds=5, embargo_fraction=0.3
         )
     )
 

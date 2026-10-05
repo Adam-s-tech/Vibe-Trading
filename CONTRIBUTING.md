@@ -149,9 +149,10 @@ configuration with no per-channel frontend code.
    from the base class and manager.
 2. Field metadata lives in `agent/src/channels/config_meta.py`. Hand-written
    `FIELD_HINTS[name]` entries supply labels and authoritative secret flags;
-   anything you omit is derived from `default_config()` with type inference, and
-   credential-shaped keys are masked by the unconditional `SECRET_KEY_RE`
-   fail-safe either way. If the platform has a credential endpoint, build the
+   channels without hand-written hints derive them from `default_config()` with
+   type inference. Stored keys without a hand-written declaration use the
+   `SECRET_KEY_RE` fail-safe. Declared secret flags are authoritative, including
+   audited exceptions for benign path or timeout keys. If the platform has a credential endpoint, build the
    connection probe on `token_probe.py` rather than writing a new client (see
    `dingtalk_probe.py` for the pattern) and override `test_connection()`.
 3. Run the authoring contract locally:

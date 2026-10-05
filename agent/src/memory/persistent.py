@@ -650,6 +650,9 @@ class PersistentMemory:
         """
         from src.config.accessor import get_env_config
 
+        name = name.strip()
+        if not name:
+            return False
         entries = self._scan_entries()
         matches = [
             entry

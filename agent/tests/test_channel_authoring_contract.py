@@ -9,54 +9,60 @@ here instead of in the browser.
 
 from __future__ import annotations
 
-from src.channels.config_meta import SECRET_KEY_RE, channel_field_hints, is_secret_key
+import asyncio
+import re
+import tomllib
+from pathlib import Path
+
+import pytest
+
+from src.channels.config_meta import channel_field_hints, split_values_secrets
 from src.channels.registry import discover_channel_names, load_channel_class
 
 
-def test_every_discovered_channel_satisfies_the_authoring_contract() -> None:
-    names = discover_channel_names()
-    assert names, "registry discovered no channels"
+@pytest.mark.parametrize("name", discover_channel_names())
+def test_every_discovered_channel_satisfies_the_authoring_contract(name) -> None:
+    try:
+        cls = load_channel_class(name)
+    except ImportError as exc:
+        # Only the adapter's explicit missing-dependency envelope can skip.
+        # An arbitrary import or missing BaseChannel subclass must fail.
+        project = tomllib.loads((Path(__file__).resolve().parents[2] / "pyproject.toml").read_text())["project"]
+        optional = project["optional-dependencies"].get(name, [])
+        modules = {re.split(r"[<>=!\[; ]", requirement)[0].replace("-", "_") for requirement in optional}
+        direct_missing = isinstance(exc, ModuleNotFoundError) and (exc.name or "").split(".")[0] in modules
+        declared_missing = isinstance(exc.__cause__, ModuleNotFoundError) and "dependencies not installed" in str(exc)
+        if not (direct_missing or declared_missing):
+            raise
+        pytest.skip(str(exc))
 
-    checked = 0
-    for name in names:
-        try:
-            cls = load_channel_class(name)
-        except ImportError:
-            # Optional stack not installed here (e.g. matrix needs [nio]); an
-            # environment gate, not a contract violation.
-            continue
-        checked += 1
+    # A concrete adapter: start/stop/send are abstract on BaseChannel.
+    assert not cls.__abstractmethods__, f"{name} leaves BaseChannel abstracts unset"
 
-        # A concrete adapter: start/stop/send are abstract on BaseChannel.
-        assert not cls.__abstractmethods__, f"{name} leaves BaseChannel abstracts unset"
+    default_config = cls.default_config()
+    assert isinstance(default_config, dict), f"{name} default_config is not a dict"
 
-        default_config = cls.default_config()
-        assert isinstance(default_config, dict), f"{name} default_config is not a dict"
+    # The generic form renders from hints; every configurable scalar key
+    # must resolve one. Dict-valued fields are exempt by design: the form
+    # cannot edit them, so they stay file-configured (see _derive_hints).
+    hints = channel_field_hints(name)
+    configurable = {k for k, v in default_config.items() if k != "enabled" and not isinstance(v, dict)}
+    hint_keys = {h["key"] for h in hints}
+    missing = configurable - hint_keys
+    assert not missing, f"{name} has scalar config keys with no field hint: {sorted(missing)}"
 
-        # The generic form renders from hints; every configurable scalar key
-        # must resolve one. Dict-valued fields are exempt by design: the form
-        # cannot edit them, so they stay file-configured (see _derive_hints).
-        hints = channel_field_hints(name)
-        configurable = {k for k, v in default_config.items() if k != "enabled" and not isinstance(v, dict)}
-        hint_keys = {h["key"] for h in hints}
-        missing = configurable - hint_keys
-        assert not missing, f"{name} has scalar config keys with no field hint: {sorted(missing)}"
-
-        # Secret masking: hand-written hints are authoritative for their keys
-        # (an audited declaration may subtract an over-match, e.g. websocket's
-        # token_* path names); for every key no hint covers, the SECRET_KEY_RE
-        # fail-safe must fire.
-        hint_flags = {h["key"]: bool(h["secret"]) for h in hints}
-        for key in configurable:
-            if key in hint_flags:
-                continue
-            if SECRET_KEY_RE.search(key):
-                assert is_secret_key(name, key), f"{name}.{key} is credential-shaped, uncovered by hints, and unmasked"
-        for hint in hints:
-            if hint["type"] == "password":
-                assert hint["secret"], f"{name}.{hint['key']} is a password field not marked secret"
-
-    assert checked > 0, "every discovered channel failed to import"
+    # Test the serialized form consumed by the settings UI, rather than
+    # only asking the same classifier that supplied the hints.
+    sentinel = "credential-contract-sentinel"
+    configured = {hint["key"]: sentinel for hint in hints if hint["secret"]}
+    configured["extra_api_token"] = sentinel
+    values, secrets = split_values_secrets(name, configured)
+    assert not (set(configured) & set(values)), f"{name} exposes a credential in values"
+    assert set(configured) <= set(secrets)
+    assert sentinel not in str(secrets)
+    for hint in hints:
+        if hint["type"] == "password":
+            assert hint["secret"], f"{name}.{hint['key']} is a password field not marked secret"
 
 
 def test_test_connection_envelope_shape_is_documented_by_default() -> None:
@@ -65,3 +71,4 @@ def test_test_connection_envelope_shape_is_documented_by_default() -> None:
     from src.channels.base import BaseChannel
 
     assert "test_connection" not in BaseChannel.__abstractmethods__
+    assert asyncio.run(BaseChannel.test_connection(None)) == {"ok": False, "code": "unsupported"}

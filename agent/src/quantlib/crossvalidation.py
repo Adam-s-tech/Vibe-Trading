@@ -291,9 +291,10 @@ def purged_kfold_splits(
 
 def group_purged_kfold_splits(
     groups: Sequence[object] | pd.Series | np.ndarray,
-    label_end_times: pd.Series | Sequence[int] | np.ndarray | None = None,
     n_folds: int = 5,
     embargo_fraction: float = DEFAULT_EMBARGO_FRACTION,
+    *,
+    label_end_times: pd.Series | Sequence[int] | np.ndarray | None = None,
 ) -> Iterator[Split]:
     """Purged and embargoed K-fold cross-validation for panel and multi-asset datasets.
 
@@ -303,12 +304,13 @@ def group_purged_kfold_splits(
 
     Args:
         groups: Group identifiers (e.g. dates or bar index) for each sample row in order.
-        label_end_times: Where each row's label resolves, in the same positional form
-            :func:`purged_kfold_splits` takes. When None, each label is assumed to
-            resolve within its own group, so purging removes only the boundary and
-            the embargo does the remaining work.
         n_folds: Number of folds, at least :data:`MIN_FOLDS`.
         embargo_fraction: Fraction of unique ordered groups embargoed after each test block.
+        label_end_times: Where each row's label resolves, in the same form
+            :func:`purged_kfold_splits` takes. Groups must be contiguous and
+            chronological when supplied. Overlap removes a whole group;
+            embargo starts after the furthest test label ends. When None,
+            labels resolve within their own group and only embargo applies.
 
     Yields:
         One :class:`Split` per fold, with ``train`` and ``test`` containing row indices.
@@ -355,9 +357,11 @@ def group_purged_kfold_splits(
         # into a later group, so there is nothing for backward purging to do.
         group_reach = np.arange(n_groups)
     else:
+        if np.any(np.diff(row_group_order) < 0):
+            raise ValueError("groups must be contiguous and chronological when label_end_times is supplied")
         label_ends = _as_label_spans(label_end_times, n_samples)
         group_reach = np.array(
-            [row_group_order[label_ends[group_to_rows[g]]].max() for g in unique_groups]
+            [row_group_order[np.minimum(label_ends[group_to_rows[g]], n_samples - 1)].max() for g in unique_groups]
         )
 
     embargo_groups = int(round(n_groups * embargo_fraction))
@@ -369,16 +373,18 @@ def group_purged_kfold_splits(
             continue
 
         test_groups = set(unique_groups[start_g:stop_g])
-        embargo_end_g = min(n_groups, stop_g + embargo_groups)
-        embargo_groups_set = set(unique_groups[stop_g:embargo_end_g])
+        test_reach = int(group_reach[start_g:stop_g].max())
+        embargo_start_g = test_reach + 1
+        embargo_end_g = min(n_groups, embargo_start_g + embargo_groups)
+        embargo_groups_set = set(unique_groups[embargo_start_g:embargo_end_g])
 
-        # Symmetric purge: an earlier group whose own labels reach forward
-        # into the test block overlaps it just as much as a later group
-        # embargoed for starting shortly after -- see the module docstring.
+        # Closed label intervals overlap on either side of the test block.
+        # Future groups inside the test labels' horizon must be purged too.
         purge_groups_set = {
             unique_groups[g_idx]
-            for g_idx in range(start_g)
-            if group_reach[g_idx] >= start_g
+            for g_idx in range(n_groups)
+            if g_idx <= test_reach and group_reach[g_idx] >= start_g
+            and unique_groups[g_idx] not in test_groups
         }
 
         test_rows_list = [group_to_rows[g] for g in unique_groups[start_g:stop_g]]

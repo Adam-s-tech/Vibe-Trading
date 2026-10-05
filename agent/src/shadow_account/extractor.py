@@ -26,6 +26,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from src.shadow_account.indicators import RSI_PERIOD as _RSI_PERIOD, compute_rsi as _compute_rsi
 from src.shadow_account.models import PRICE_FEATURES, ShadowProfile, ShadowRule
 from src.shadow_account.storage import hash_journal, new_shadow_id, now_iso
 from src.tools.trade_journal_parsers import parse_file, records_to_dataframe
@@ -43,7 +44,6 @@ _CATEGORICAL_FEATURES = ("market",)
 # Names live on the data-contract boundary (models.PRICE_FEATURES) so the
 # extractor, codegen, and scanner cannot drift; aliased here for local use.
 _PRICE_FEATURES = PRICE_FEATURES
-_RSI_PERIOD = 14
 _PRIOR_RETURN_WINDOW = 5
 # Calendar buffer added before the earliest buy_dt so the RSI warmup has enough
 # trading bars even across weekends/holidays.
@@ -146,73 +146,6 @@ def extract_shadow_profile(
 
 
 # ---------------- Feature engineering ----------------
-
-def _wilder_average(values: pd.Series, period: int) -> pd.Series:
-    """True Wilder recursive smoothing: SMA-seeded, then exponential recursion.
-
-    Wilder's original formula seeds the first average as a simple mean of the
-    first ``period`` valid values, then recurses as
-    ``avg[t] = (avg[t-1] * (period - 1) + values[t]) / period`` for every bar
-    after that. This is *not* the same as
-    ``values.ewm(alpha=1/period, adjust=False).mean()``, which seeds its
-    recursion from the single first observation instead of that average —
-    measurably further from Wilder during the warmup-adjacent bars, not
-    closer, even though the two converge for data far enough past warmup.
-
-    Vectorized as an ``ewm`` over the seed plus the remaining values, which is
-    mathematically identical to the explicit recursion: seeding an
-    ``adjust=False`` ewm with the average as its first "observation" and
-    dropping that duplicate first row reproduces the same recursive update at
-    every following step.
-
-    Args:
-        values: Series to smooth (e.g. per-bar gains or losses); may lead
-            with NaN (as ``close.diff()`` does).
-        period: Wilder lookback period.
-
-    Returns:
-        A series aligned with ``values``, NaN before the seed index.
-    """
-    result = pd.Series(np.nan, index=values.index, dtype=float)
-    valid = values.dropna()
-    if len(valid) < period:
-        return result
-
-    seed = valid.iloc[:period].mean()
-    result.loc[valid.index[period - 1]] = seed
-
-    remaining = valid.iloc[period:]
-    if len(remaining) > 0:
-        tail = pd.concat([pd.Series([seed]), remaining])
-        smoothed_tail = tail.ewm(alpha=1 / period, adjust=False).mean().iloc[1:]
-        result.loc[remaining.index] = smoothed_tail.to_numpy()
-    return result
-
-
-def _compute_rsi(close: pd.Series, period: int = _RSI_PERIOD) -> pd.Series:
-    """Causal Wilder RSI.
-
-    Mirrors the shape of ``compute_rsi`` in
-    ``agent/src/skills/technical-basic/example_signal_engine.py:13`` — that
-    module lives under a hyphenated (non-importable) skills directory, so the
-    formula is re-implemented here rather than imported. Causal by construction:
-    ``RSI[t]`` depends only on closes dated ``<= t``.
-
-    Args:
-        close: Close-price series indexed by date.
-        period: RSI lookback period.
-
-    Returns:
-        RSI series (0-100), NaN for the warmup window.
-    """
-    delta = close.diff()
-    gain = delta.clip(lower=0)
-    loss = (-delta).clip(lower=0)
-    avg_gain = _wilder_average(gain, period)
-    avg_loss = _wilder_average(loss, period)
-    rs = avg_gain / avg_loss
-    return 100 - 100 / (1 + rs)
-
 
 def _fetch_price_history(
     symbol: str,
